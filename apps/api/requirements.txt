@@ -1,0 +1,18 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.6
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+python-multipart==0.0.20
+
+# RAG and AI dependencies (optional - uncomment as needed)
+# langchain==0.3.18
+# langchain-openai==0.2.14
+# openai==1.59.7
+# chromadb==0.5.23
+# sentence-transformers==3.3.1
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.2
+httpx==0.28.1
