@@ -1,76 +1,73 @@
-# RAGfolio Web
+# Welcome to your Lovable project
 
-React + TypeScript frontend for the RAGfolio application.
+## Project info
 
-## Tech Stack
+**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
 
-- React 18
-- TypeScript 5
-- Vite 5
-- ESLint
+## How can I edit this code?
 
-## Getting Started
+There are several ways of editing your application.
 
-### Installation
+**Use Lovable**
 
-```bash
-pnpm install
+Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+
+Changes made via Lovable will be committed automatically to this repo.
+
+**Use your preferred IDE**
+
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
+Follow these steps:
+
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
+
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
+
+# Step 3: Install the necessary dependencies.
+npm i
+
+# Step 4: Start the development server with auto-reloading and an instant preview.
+npm run dev
 ```
 
-### Development
+**Edit a file directly in GitHub**
 
-```bash
-pnpm dev
-```
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-The app will be available at http://localhost:3000
+**Use GitHub Codespaces**
 
-### Building
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-```bash
-pnpm build
-```
+## What technologies are used for this project?
 
-### Preview Production Build
+This project is built with:
 
-```bash
-pnpm preview
-```
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-## Project Structure
+## How can I deploy this project?
 
-```
-src/
-├── components/     # React components
-├── hooks/          # Custom React hooks
-├── services/       # API services
-├── types/          # TypeScript types (imported from @ragfolio/types)
-├── utils/          # Utility functions
-├── App.tsx         # Main app component
-├── main.tsx        # Entry point
-└── index.css       # Global styles
-```
+Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
 
-## API Integration
+## Can I connect a custom domain to my Lovable project?
 
-The Vite dev server is configured to proxy API requests to the FastAPI backend:
+Yes, you can!
 
-- Frontend: http://localhost:3000
-- API Proxy: http://localhost:3000/api → http://localhost:8000
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
-## Available Scripts
-
-- `pnpm dev` - Start development server
-- `pnpm build` - Build for production
-- `pnpm preview` - Preview production build
-- `pnpm lint` - Lint code
-- `pnpm clean` - Clean build artifacts
-
-## Next Steps
-
-- Add routing (React Router)
-- Add state management (Zustand/Redux)
-- Add UI component library (shadcn/ui, MUI, etc.)
-- Add styling solution (Tailwind CSS, CSS Modules, etc.)
-- Implement chat interface for RAG
-- Add authentication
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
