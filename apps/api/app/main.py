@@ -33,6 +33,15 @@ async def health():
     return {"status": "healthy"}
 
 
+from app.db.base import Base
+from app.db.session import engine
+from app.routers import auth
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
 # Include routers here as you build them
 # from app.routers import rag
 # app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
+
+app.include_router(auth.router)

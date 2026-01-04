@@ -1,73 +1,143 @@
-# Welcome to your Lovable project
+# RAGFolio Web
 
-## Project info
+Frontend application for RAGFolio - A modern RAG (Retrieval-Augmented Generation) application built by Bodanlabs.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Overview
 
-## How can I edit this code?
+RAGFolio Web is the frontend component of the RAGFolio monorepo. It provides a modern, responsive user interface for interacting with the RAG system, managing documents, and conducting AI-powered conversations.
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
+## Tech Stack
 
 This project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- **Vite** - Fast build tool and development server
+- **TypeScript** - Type-safe JavaScript
+- **React 18** - Modern UI library
+- **shadcn-ui** - High-quality component library
+- **Tailwind CSS** - Utility-first CSS framework
+- **React Router** - Client-side routing
+- **TanStack Query** - Data fetching and caching
+- **React Hook Form** - Form management
+- **Zod** - Schema validation
 
-## How can I deploy this project?
+## Getting Started
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+### Prerequisites
 
-## Can I connect a custom domain to my Lovable project?
+- **Node.js**: >= 18.0.0
+- **pnpm**: >= 8.0.0
 
-Yes, you can!
+### Installation
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+1. **Install dependencies** (from the monorepo root)
+   ```bash
+   pnpm install
+   ```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+2. **Navigate to the web app**
+   ```bash
+   cd apps/web
+   ```
+
+### Development
+
+#### Run from monorepo root (recommended)
+```bash
+pnpm dev
+```
+
+This will start both the frontend and backend concurrently.
+
+#### Run frontend only
+```bash
+cd apps/web
+pnpm dev
+```
+
+The application will be available at: **http://localhost:8080**
+
+The development server includes:
+- Hot module replacement (HMR)
+- Fast refresh
+- TypeScript type checking
+- ESLint integration
+
+### Building for Production
+
+```bash
+# Build from monorepo root
+pnpm build
+
+# Or build from web directory
+cd apps/web
+pnpm build
+```
+
+The production build will be output to `apps/web/dist/`.
+
+### Preview Production Build
+
+```bash
+cd apps/web
+pnpm preview
+```
+
+## Project Structure
+
+```
+apps/web/
+├── src/
+│   ├── components/     # React components
+│   │   ├── layout/    # Layout components (AppShell, Sidebar, etc.)
+│   │   └── ui/        # shadcn-ui components
+│   ├── contexts/      # React contexts (AppContext, etc.)
+│   ├── hooks/         # Custom React hooks
+│   ├── lib/           # Utility functions
+│   ├── pages/         # Page components
+│   ├── types/         # TypeScript type definitions
+│   ├── App.tsx        # Main app component
+│   └── main.tsx       # Entry point
+├── public/            # Static assets
+├── index.html         # HTML template
+└── vite.config.ts     # Vite configuration
+```
+
+## Available Scripts
+
+- `pnpm dev` - Start development server
+- `pnpm build` - Build for production
+- `pnpm build:dev` - Build in development mode
+- `pnpm preview` - Preview production build
+- `pnpm lint` - Run ESLint
+
+## Features
+
+- 🎨 Modern, responsive UI with shadcn-ui components
+- 🔄 Real-time updates with React Query
+- 🧭 Client-side routing with React Router
+- 📝 Form validation with React Hook Form + Zod
+- 🎯 Type-safe code with TypeScript
+- ⚡ Fast development experience with Vite
+- 🎭 Dark mode support
+- 📱 Mobile-responsive design
+
+## Integration with Backend
+
+The frontend communicates with the RAGFolio API backend:
+
+- **API Base URL**: http://localhost:8000 (development)
+- **API Documentation**: http://localhost:8000/docs
+
+Configure the API endpoint in your environment variables if needed.
+
+## Contributing
+
+This project is part of the RAGFolio monorepo. See the main [README.md](../../README.md) for contribution guidelines.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## About
+
+RAGFolio is developed by **Bodanlabs**.
