@@ -5,14 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, UserPlus } from 'lucide-react';
 
-export default function LoginPage() {
+export default function SignupPage() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useApp();
+  const { signup } = useApp();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,12 +39,9 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const success = await login(email.trim(), password);
-      if (success) {
-        navigate('/chat');
-      } else {
-        setError('Invalid email or password');
-      }
+      const trimmedName = name.trim();
+      await signup(email.trim(), password, trimmedName ? trimmedName : undefined);
+      navigate('/org/setup');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred. Please try again.';
       setError(message);
@@ -65,8 +63,11 @@ export default function LoginPage() {
 
         <Card className="border-0 shadow-lg">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl">Welcome back</CardTitle>
-            <CardDescription>Sign in to your account to continue</CardDescription>
+            <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mx-auto mb-3">
+              <UserPlus className="w-6 h-6 text-accent" />
+            </div>
+            <CardTitle className="text-xl">Create your account</CardTitle>
+            <CardDescription>Start building with RAGfolio in a few clicks</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -76,6 +77,19 @@ export default function LoginPage() {
                   {error}
                 </div>
               )}
+
+              <div className="space-y-2">
+                <Label htmlFor="name">Name (optional)</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Alex Johnson"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isLoading}
+                  className="h-11"
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -91,19 +105,11 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                  <button
-                    type="button"
-                    className="text-xs text-accent hover:underline"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
+                <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="********"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
@@ -119,18 +125,18 @@ export default function LoginPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
+                    Creating account...
                   </>
                 ) : (
-                  'Sign in'
+                  'Sign up'
                 )}
               </Button>
             </form>
 
             <p className="text-xs text-muted-foreground text-center mt-6">
-              New here?{' '}
-              <Link to="/signup" className="text-accent hover:underline">
-                Create an account
+              Already have an account?{' '}
+              <Link to="/login" className="text-accent hover:underline">
+                Sign in
               </Link>
             </p>
           </CardContent>

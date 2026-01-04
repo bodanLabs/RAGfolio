@@ -9,6 +9,14 @@ bcrypt==4.1.2
 pyjwt==2.8.0
 psycopg2-binary==2.9.9
 
+# Database migrations and extensions
+alembic==1.13.1
+pgvector==0.3.6
+
+# Security and utilities
+cryptography==42.0.5
+python-slugify==8.0.1
+
 # RAG and AI dependencies (optional - uncomment as needed)
 # langchain==0.3.18
 # langchain-openai==0.2.14

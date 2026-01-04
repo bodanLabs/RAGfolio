@@ -5,12 +5,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
 import OrgSetupPage from "./pages/OrgSetupPage";
 import ChatPage from "./pages/ChatPage";
 import DocumentsPage from "./pages/DocumentsPage";
 import OrganizationPage from "./pages/OrganizationPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
+import Index from "./pages/Index";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +34,10 @@ function AppRoutes() {
         element={isAuthenticated ? <Navigate to="/chat" replace /> : <LoginPage />}
       />
       <Route
+        path="/signup"
+        element={isAuthenticated ? <Navigate to="/chat" replace /> : <SignupPage />}
+      />
+      <Route
         path="/org/setup"
         element={
           <ProtectedRoute>
@@ -43,7 +49,7 @@ function AppRoutes() {
       <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
       <Route path="/org" element={<ProtectedRoute><OrganizationPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Index />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

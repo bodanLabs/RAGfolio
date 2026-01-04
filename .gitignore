@@ -47,6 +47,7 @@ out/
 *.swo
 *~
 .DS_Store
+.claude/
 
 # Turborepo
 .turbo
