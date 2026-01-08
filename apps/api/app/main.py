@@ -35,13 +35,11 @@ async def health():
 
 from app.db.base import Base
 from app.db.session import engine
-from app.routers import auth
+from app.routers import auth, organizations
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
-# Include routers here as you build them
-# from app.routers import rag
-# app.include_router(rag.router, prefix="/api/rag", tags=["rag"])
-
+# Include routers
 app.include_router(auth.router)
+app.include_router(organizations.router)
