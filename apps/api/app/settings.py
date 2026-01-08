@@ -34,6 +34,30 @@ class Settings(BaseSettings):
     # CORS (comma-separated string in .env, e.g. "http://localhost:5173,http://localhost:3000")
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
+    # Redis (for caching and rate limiting)
+    redis_url: str = "redis://localhost:6379/0"
+
+    # Celery
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/0"
+
+    # OpenAI (for embeddings and chat)
+    openai_api_key: str = ""
+
+    # Performance
+    default_page_size: int = 20
+    max_page_size: int = 100
+    rate_limit_requests_per_minute: int = 100
+    vector_search_default_limit: int = 5
+    vector_search_max_limit: int = 10
+    embedding_batch_size: int = 100
+    max_file_size_mb: int = 50
+
+    # Database connection pool
+    db_pool_size: int = 20
+    db_max_overflow: int = 10
+    db_pool_recycle: int = 3600  # 1 hour
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
