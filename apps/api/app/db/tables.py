@@ -8,7 +8,7 @@ from sqlalchemy import (
     ForeignKey, Index, Integer, String, Text, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
-# from pgvector.sqlalchemy import Vector  # TODO: Uncomment when pgvector is installed on PostgreSQL
+from pgvector.sqlalchemy import Vector
 
 from app.db.base import Base
 from app.db.enums import (
@@ -193,9 +193,9 @@ class DocumentChunk(Base):
     chunk_index = Column(Integer, nullable=False)
     text_content = Column(Text, nullable=False)
 
-    # Vector embedding (pgvector) - TODO: Uncomment when pgvector is installed
+    # Vector embedding (pgvector)
     # Dimension 1536 for OpenAI text-embedding-ada-002
-    # embedding = Column(Vector(1536), nullable=True)
+    embedding = Column(Vector(1536), nullable=True)
 
     # Metadata
     page_number = Column(Integer, nullable=True)
