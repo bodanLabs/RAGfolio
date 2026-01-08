@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 
-from app.api.dependencies import get_auth_service, get_current_user
+from app.api.dependencies import get_auth_service, get_current_user, get_current_user_model
 from app.db.tables import UserRecord
 from app.models.auth import LoginRequest, SignupRequest, TokenResponse
 from app.models.user import User
@@ -90,7 +90,7 @@ async def login(
 
 @router.get("/me", response_model=User)
 async def get_current_user_info(
-    current_user: UserRecord = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_model),
 ):
     """Get current authenticated user information.
 
@@ -98,9 +98,9 @@ async def get_current_user_info(
         current_user: Current authenticated user from JWT token
 
     Returns:
-        User information (id, email, name, phone, avatar_url, created_at)
+        User information (id, email, name, created_at)
 
     Raises:
         HTTPException: 401 if token is missing or invalid
     """
-    return User.model_validate(current_user)
+    return current_user
