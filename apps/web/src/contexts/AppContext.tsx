@@ -1,118 +1,89 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
-import { User, Organization, UserRole, AppState } from '@/types';
+/**
+ * App Context
+ * Provides global app state including authentication and organization context.
+ */
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+} from 'react';
+import type { ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { authApi } from '@/api/auth';
+import { organizationsApi } from '@/api/organizations';
+import {
+  getStoredToken,
+  setStoredToken,
+  clearStoredToken,
+  isApiError,
+} from '@/lib/api-client';
+import { mapUser, mapOrganization } from '@/lib/mappers';
+import { queryKeys } from '@/lib/query-keys';
+import type { User, Organization, UserRole, AppState } from '@/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
-const ACCESS_TOKEN_KEY = 'ragfolio_access_token';
-
-type TokenResponse = {
-  access_token: string;
-  token_type: 'bearer';
-  ok: boolean;
-};
-
-type ApiUser = {
-  id: number;
-  email: string;
-  name?: string | null;
-  created_at: string;
-};
-
-const mapUser = (apiUser: ApiUser): User => {
-  const emailFallback = apiUser.email.split('@')[0] || 'User';
-  const displayName = apiUser.name?.trim() || emailFallback;
-
-  return {
-    id: String(apiUser.id),
-    name: displayName,
-    email: apiUser.email,
-    avatarUrl: undefined,
-  };
-};
-
-const parseErrorMessage = async (response: Response) => {
-  try {
-    const data = await response.json();
-    if (typeof data?.detail === 'string') {
-      return data.detail;
-    }
-    if (Array.isArray(data?.detail)) {
-      return data.detail.map((item: { msg?: string }) => item.msg).filter(Boolean).join(', ') || 'Request failed';
-    }
-    if (typeof data?.message === 'string') {
-      return data.message;
-    }
-  } catch {
-    return response.statusText || 'Request failed';
-  }
-  return response.statusText || 'Request failed';
-};
-
-const requestJson = async <T,>(path: string, options: RequestInit = {}, token?: string): Promise<T> => {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> | undefined),
-  };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    const message = await parseErrorMessage(response);
-    const error = new Error(message) as Error & { status?: number };
-    error.status = response.status;
-    throw error;
-  }
-
-  return response.json() as Promise<T>;
-};
-
-const isApiError = (error: unknown): error is Error & { status?: number } => {
-  return typeof error === 'object' && error !== null && 'status' in error;
-};
-
-const getStoredToken = () => {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
-};
-
-const setStoredToken = (token: string) => {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-};
-
-const clearStoredToken = () => {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-};
-
-interface AppContextType extends AppState {
+type AppContextType = AppState & {
   login: (email: string, password: string) => Promise<boolean>;
   signup: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
   setCurrentOrganization: (org: Organization) => void;
   createOrganization: (name: string) => Promise<Organization>;
+  refreshOrganizations: () => Promise<void>;
   isAdmin: boolean;
-}
+  isLoading: boolean;
+};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-interface AppProviderProps {
+type AppProviderProps = {
   children: ReactNode;
-}
+};
 
 export function AppProvider({ children }: AppProviderProps) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
-  const [currentOrganization, setCurrentOrg] = useState<Organization | null>(null);
+  const [currentOrganization, setCurrentOrg] = useState<Organization | null>(
+    null
+  );
+  const [currentOrganizationId, setCurrentOrganizationId] = useState<
+    number | null
+  >(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch user's role in current organization
+  const fetchUserRole = useCallback(async (orgId: number, userId: number) => {
+    try {
+      const members = await organizationsApi.listMembers(orgId, 1, 100);
+      const member = members.find((m) => m.user_id === userId);
+      setUserRole(member?.role ?? 'USER');
+    } catch {
+      setUserRole('USER');
+    }
+  }, []);
+
+  // Fetch organizations for current user
+  const fetchOrganizations = useCallback(async () => {
+    try {
+      const orgs = await organizationsApi.list(1, 100);
+      const mappedOrgs = orgs.map(mapOrganization);
+      setOrganizations(mappedOrgs);
+      return mappedOrgs;
+    } catch {
+      setOrganizations([]);
+      return [];
+    }
+  }, []);
+
+  // Initialize auth state on mount
   useEffect(() => {
     const token = getStoredToken();
     if (!token) {
+      setIsLoading(false);
       return;
     }
 
@@ -120,18 +91,32 @@ export function AppProvider({ children }: AppProviderProps) {
 
     const loadUser = async () => {
       try {
-        const apiUser = await requestJson<ApiUser>('/auth/me', { method: 'GET' }, token);
-        if (!isActive) {
-          return;
-        }
-        setUser(mapUser(apiUser));
+        const apiUser = await authApi.me();
+        if (!isActive) return;
+
+        const mappedUser = mapUser(apiUser);
+        setUser(mappedUser);
         setIsAuthenticated(true);
-        setUserRole('USER');
+
+        // Fetch organizations
+        const orgs = await fetchOrganizations();
+
+        // Auto-select first org if available
+        if (orgs.length > 0 && isActive) {
+          const firstOrg = orgs[0];
+          setCurrentOrg(firstOrg);
+          setCurrentOrganizationId(Number(firstOrg.id));
+          await fetchUserRole(Number(firstOrg.id), apiUser.id);
+        }
       } catch {
         if (isActive) {
           clearStoredToken();
           setUser(null);
           setIsAuthenticated(false);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
         }
       }
     };
@@ -141,111 +126,162 @@ export function AppProvider({ children }: AppProviderProps) {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [fetchOrganizations, fetchUserRole]);
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
-    try {
-      const tokenResponse = await requestJson<TokenResponse>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      setStoredToken(tokenResponse.access_token);
+  const login = useCallback(
+    async (email: string, password: string): Promise<boolean> => {
+      try {
+        const tokenResponse = await authApi.login({ email, password });
+        setStoredToken(tokenResponse.access_token);
 
-      const apiUser = await requestJson<ApiUser>('/auth/me', { method: 'GET' }, tokenResponse.access_token);
-      setUser(mapUser(apiUser));
-      setOrganizations([]);
-      setCurrentOrg(null);
-      setUserRole('USER');
-      setIsAuthenticated(true);
-      return true;
-    } catch (error) {
-      clearStoredToken();
-      setUser(null);
-      setIsAuthenticated(false);
-      if (isApiError(error) && error.status === 401) {
-        return false;
+        const apiUser = await authApi.me();
+        const mappedUser = mapUser(apiUser);
+        setUser(mappedUser);
+        setIsAuthenticated(true);
+
+        // Fetch organizations
+        const orgs = await fetchOrganizations();
+
+        // Auto-select first org if available
+        if (orgs.length > 0) {
+          const firstOrg = orgs[0];
+          setCurrentOrg(firstOrg);
+          setCurrentOrganizationId(Number(firstOrg.id));
+          await fetchUserRole(Number(firstOrg.id), apiUser.id);
+        } else {
+          setCurrentOrg(null);
+          setCurrentOrganizationId(null);
+          setUserRole(null);
+        }
+
+        return true;
+      } catch (error) {
+        clearStoredToken();
+        setUser(null);
+        setIsAuthenticated(false);
+        if (isApiError(error) && error.status === 401) {
+          return false;
+        }
+        throw error;
       }
-      throw error;
-    }
-  }, []);
+    },
+    [fetchOrganizations, fetchUserRole]
+  );
 
-  const signup = useCallback(async (email: string, password: string, name?: string): Promise<void> => {
-    try {
-      const tokenResponse = await requestJson<TokenResponse>('/auth/signup', {
-        method: 'POST',
-        body: JSON.stringify({ email, password, name }),
-      });
-      setStoredToken(tokenResponse.access_token);
+  const signup = useCallback(
+    async (email: string, password: string, name?: string): Promise<void> => {
+      try {
+        const tokenResponse = await authApi.signup({ email, password, name });
+        setStoredToken(tokenResponse.access_token);
 
-      const apiUser = await requestJson<ApiUser>('/auth/me', { method: 'GET' }, tokenResponse.access_token);
-      setUser(mapUser(apiUser));
-      setOrganizations([]);
-      setCurrentOrg(null);
-      setUserRole('USER');
-      setIsAuthenticated(true);
-    } catch (error) {
-      clearStoredToken();
-      setUser(null);
-      setIsAuthenticated(false);
-      throw error;
-    }
-  }, []);
+        const apiUser = await authApi.me();
+        const mappedUser = mapUser(apiUser);
+        setUser(mappedUser);
+        setOrganizations([]);
+        setCurrentOrg(null);
+        setCurrentOrganizationId(null);
+        setUserRole(null);
+        setIsAuthenticated(true);
+      } catch (error) {
+        clearStoredToken();
+        setUser(null);
+        setIsAuthenticated(false);
+        throw error;
+      }
+    },
+    []
+  );
 
   const logout = useCallback(() => {
     clearStoredToken();
     setUser(null);
     setCurrentOrg(null);
+    setCurrentOrganizationId(null);
     setUserRole(null);
     setOrganizations([]);
     setIsAuthenticated(false);
-  }, []);
+    // Clear all queries on logout
+    queryClient.clear();
+  }, [queryClient]);
 
-  const setCurrentOrganization = useCallback((org: Organization) => {
-    setCurrentOrg(org);
-    // In real app, would also fetch user's role for this org
-  }, []);
+  const setCurrentOrganization = useCallback(
+    (org: Organization) => {
+      setCurrentOrg(org);
+      setCurrentOrganizationId(Number(org.id));
+      // Fetch user's role in new org
+      if (user) {
+        void fetchUserRole(Number(org.id), Number(user.id));
+      }
+      // Invalidate org-specific queries when switching orgs
+      void queryClient.invalidateQueries({
+        queryKey: ['organizations', Number(org.id)],
+      });
+    },
+    [user, fetchUserRole, queryClient]
+  );
 
-  const createOrganization = useCallback(async (name: string): Promise<Organization> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const newOrg: Organization = {
-      id: `org-${Date.now()}`,
-      name,
-      createdDate: new Date().toISOString(),
-      stats: {
-        fileCount: 0,
-        totalChunks: 0,
-        totalSize: 0,
-      },
-    };
-    
-    setOrganizations(prev => [...prev, newOrg]);
-    setCurrentOrg(newOrg);
-    setUserRole('ADMIN');
-    return newOrg;
-  }, []);
+  const createOrganization = useCallback(
+    async (name: string): Promise<Organization> => {
+      const apiOrg = await organizationsApi.create({ name });
+      const newOrg = mapOrganization(apiOrg);
+
+      setOrganizations((prev) => [...prev, newOrg]);
+      setCurrentOrg(newOrg);
+      setCurrentOrganizationId(Number(newOrg.id));
+      setUserRole('ADMIN'); // Creator is always admin
+
+      // Invalidate organizations list
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.organizations.lists(),
+      });
+
+      return newOrg;
+    },
+    [queryClient]
+  );
+
+  const refreshOrganizations = useCallback(async () => {
+    await fetchOrganizations();
+  }, [fetchOrganizations]);
 
   const isAdmin = userRole === 'ADMIN';
 
-  return (
-    <AppContext.Provider
-      value={{
-        user,
-        currentOrganization,
-        userRole,
-        isAuthenticated,
-        organizations,
-        login,
-        signup,
-        logout,
-        setCurrentOrganization,
-        createOrganization,
-        isAdmin,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
+  const value = useMemo<AppContextType>(
+    () => ({
+      user,
+      currentOrganization,
+      currentOrganizationId,
+      userRole,
+      isAuthenticated,
+      organizations,
+      login,
+      signup,
+      logout,
+      setCurrentOrganization,
+      createOrganization,
+      refreshOrganizations,
+      isAdmin,
+      isLoading,
+    }),
+    [
+      user,
+      currentOrganization,
+      currentOrganizationId,
+      userRole,
+      isAuthenticated,
+      organizations,
+      login,
+      signup,
+      logout,
+      setCurrentOrganization,
+      createOrganization,
+      refreshOrganizations,
+      isAdmin,
+      isLoading,
+    ]
   );
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {
