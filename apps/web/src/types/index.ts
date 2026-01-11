@@ -1,94 +1,131 @@
-// User & Auth Types
+/**
+ * Frontend Domain Types
+ * These types are used throughout the UI components.
+ * Uses camelCase for JavaScript conventions.
+ * IDs are strings for React keys and URL params.
+ */
+
+// User & Auth
 export type UserRole = 'ADMIN' | 'USER';
 
-export interface User {
+export type User = {
   id: string;
   name: string;
   email: string;
   avatarUrl?: string;
-}
+};
 
-export interface OrganizationMember {
+// Organization
+export type Organization = {
   id: string;
+  name: string;
+  slug: string;
+  createdAt: string;
+};
+
+export type OrganizationStats = {
+  fileCount: number;
+  totalChunks: number;
+  totalSize: number;
+  currentDocuments: number;
+  currentStorageBytes: number;
+  currentChunks: number;
+  currentChatSessions: number;
+  maxDocuments: number;
+  maxStorageBytes: number;
+  maxChatSessions: number;
+};
+
+// Member
+export type OrganizationMember = {
+  id: string;
+  userId: string;
   user: User;
   role: UserRole;
-  joinedDate: string;
-}
+  joinedAt: string;
+};
 
-export interface Invitation {
+// Invitation
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED';
+
+export type Invitation = {
   id: string;
   email: string;
   role: UserRole;
-  status: 'PENDING' | 'ACCEPTED' | 'EXPIRED';
-  invitedDate: string;
-}
+  status: InvitationStatus;
+  expiresAt: string;
+  createdAt: string;
+};
 
-// Organization Types
-export interface Organization {
-  id: string;
-  name: string;
-  createdDate: string;
-  stats: OrganizationStats;
-}
-
-export interface OrganizationStats {
-  fileCount: number;
-  totalChunks: number;
-  totalSize?: number;
-  lastUpdated?: string;
-}
-
-// Document Types
+// Document
 export type DocumentStatus = 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED';
 
-export interface Document {
+export type Document = {
   id: string;
+  organizationId: string;
   fileName: string;
-  fileType: 'txt' | 'pdf' | 'docx';
+  fileType: string;
   fileSize: number;
   status: DocumentStatus;
-  uploadedDate: string;
-  uploadedBy?: string;
-  chunks?: number;
   errorMessage?: string;
-}
+  chunkCount: number;
+  uploadedAt: string;
+  processedAt?: string;
+};
 
-// Chat Types
-export interface ChatSession {
+export type DocumentStats = {
+  totalDocuments: number;
+  readyDocuments: number;
+  processingDocuments: number;
+  failedDocuments: number;
+  totalChunks: number;
+  totalSize: number;
+};
+
+// Chat
+export type ChatSession = {
   id: string;
+  organizationId: string;
   title: string;
-  createdDate: string;
-  lastUpdatedDate: string;
   messageCount: number;
-}
+  createdAt: string;
+  updatedAt: string;
+};
 
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-  sources?: DocumentSource[];
-}
-
-export interface DocumentSource {
+export type DocumentSource = {
   documentId: string;
   fileName: string;
-  chunk: string;
+  chunkId: string;
   relevanceScore: number;
-}
+  textPreview: string;
+};
 
-// LLM Settings Types
-export interface LLMSettings {
-  provider: 'OpenAI';
-  apiKey: string;
-  keyStatus: 'SET' | 'NOT_SET';
-}
+export type ChatMessage = {
+  id: string;
+  sessionId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  sources?: DocumentSource[];
+};
 
-// App Context Types
-export interface AppState {
+// LLM Settings
+export type LLMKey = {
+  id: string;
+  organizationId: string;
+  provider: string;
+  keyName: string;
+  isActive: boolean;
+  createdAt: string;
+  lastUsedAt?: string;
+};
+
+// App State
+export type AppState = {
   user: User | null;
   currentOrganization: Organization | null;
+  currentOrganizationId: number | null;
   userRole: UserRole | null;
   isAuthenticated: boolean;
   organizations: Organization[];
-}
+};
