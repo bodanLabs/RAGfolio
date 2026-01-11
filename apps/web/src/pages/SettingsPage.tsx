@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -6,10 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Key, 
-  Eye, 
-  EyeOff, 
+import {
+  Key,
+  Eye,
+  EyeOff,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -17,65 +17,119 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { mockLLMSettings, emptyLLMSettings } from '@/data/mockData';
-import { LLMSettings } from '@/types';
+import { useActiveLLMKey, useCreateLLMKey, useUpdateLLMKey, useTestLLMKey } from '@/hooks/api/useLLMKeys';
+import { useApiError } from '@/hooks/useApiError';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
-  const { isAdmin } = useApp();
+  const { isAdmin, currentOrganizationId } = useApp();
   const { toast } = useToast();
-  const [settings, setSettings] = useState<LLMSettings>(mockLLMSettings);
-  const [apiKey, setApiKey] = useState(settings.apiKey);
+  const { handleError } = useApiError();
+
+  const orgId = currentOrganizationId ?? 0;
+
+  const { data: activeKey, keys, isLoading: isLoadingKeys } = useActiveLLMKey(orgId);
+  const createKeyMutation = useCreateLLMKey(orgId);
+  const updateKeyMutation = useUpdateLLMKey(orgId);
+  const testKeyMutation = useTestLLMKey(orgId);
+
+  const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'valid' | 'invalid' | null>(null);
 
+  // Initialize apiKey when activeKey loads (we don't store the actual key, just the placeholder)
+  useEffect(() => {
+    if (activeKey) {
+      // API doesn't return the actual key for security, only metadata
+      setApiKey('');
+    }
+  }, [activeKey]);
+
+  const hasKey = activeKey !== undefined || (keys && keys.length > 0);
+  const isSaving = createKeyMutation.isPending || updateKeyMutation.isPending;
+  const isTesting = testKeyMutation.isPending;
+
   const handleSave = async () => {
-    if (!isAdmin) return;
+    if (!isAdmin || !apiKey.trim()) return;
 
-    setIsSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
+    try {
+      if (activeKey) {
+        // Update existing key
+        await updateKeyMutation.mutateAsync({
+          keyId: Number(activeKey.id),
+          data: { api_key: apiKey },
+        });
+      } else {
+        // Create new key
+        await createKeyMutation.mutateAsync({
+          key_name: 'OpenAI API Key',
+          api_key: apiKey,
+          provider: 'openai',
+        });
+      }
 
-    setSettings({
-      ...settings,
-      apiKey: apiKey,
-      keyStatus: apiKey ? 'SET' : 'NOT_SET',
-    });
-    setIsSaving(false);
-    setTestResult(null);
-
-    toast({
-      title: 'Settings saved',
-      description: 'Your LLM settings have been updated.',
-    });
+      setApiKey('');
+      setTestResult(null);
+      toast({
+        title: 'Settings saved',
+        description: 'Your LLM settings have been updated.',
+      });
+    } catch (error) {
+      handleError(error, 'saving LLM settings');
+    }
   };
 
   const handleTest = async () => {
-    setIsTesting(true);
+    if (!apiKey.trim()) return;
+
     setTestResult(null);
-    await new Promise((r) => setTimeout(r, 1200));
-    
-    // Simulate test - in real app would validate with OpenAI
-    const isValid = apiKey.startsWith('sk-');
-    setTestResult(isValid ? 'valid' : 'invalid');
-    setIsTesting(false);
 
-    toast({
-      title: isValid ? 'API key is valid' : 'API key is invalid',
-      description: isValid 
-        ? 'Your OpenAI API key works correctly.' 
-        : 'Please check your API key and try again.',
-      variant: isValid ? 'default' : 'destructive',
-    });
+    try {
+      const result = await testKeyMutation.mutateAsync({
+        api_key: apiKey,
+        provider: 'openai',
+      });
+
+      const isValid = result.valid;
+      setTestResult(isValid ? 'valid' : 'invalid');
+
+      toast({
+        title: isValid ? 'API key is valid' : 'API key is invalid',
+        description: isValid
+          ? 'Your OpenAI API key works correctly.'
+          : result.error ?? 'Please check your API key and try again.',
+        variant: isValid ? 'default' : 'destructive',
+      });
+    } catch (error) {
+      setTestResult('invalid');
+      handleError(error, 'testing API key');
+    }
   };
 
-  const getMaskedKey = (key: string) => {
-    if (!key) return '';
-    if (key.length <= 8) return '•'.repeat(key.length);
-    return key.slice(0, 7) + '•'.repeat(key.length - 11) + key.slice(-4);
+  const getMaskedKey = () => {
+    if (!activeKey) return '';
+    // Show masked representation based on key name
+    return `••••••••••••${activeKey.keyName ? ` (${activeKey.keyName})` : ''}`;
   };
+
+  if (isLoadingKeys) {
+    return (
+      <AppShell>
+        <div className="p-4 md:p-6 max-w-3xl mx-auto">
+          <PageHeader
+            title="Settings"
+            description="Configure your organization's LLM settings"
+          />
+          <Card>
+            <CardContent className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -121,22 +175,22 @@ export default function SettingsPage() {
                 <Badge
                   variant="outline"
                   className={cn(
-                    settings.keyStatus === 'SET'
+                    hasKey
                       ? 'border-status-ready text-status-ready'
                       : 'border-status-failed text-status-failed'
                   )}
                 >
-                  {settings.keyStatus === 'SET' ? 'Set' : 'Not set'}
+                  {hasKey ? 'Set' : 'Not set'}
                 </Badge>
               </div>
-              
+
               {isAdmin ? (
                 <div className="space-y-3">
                   <div className="relative">
                     <Input
                       id="apiKey"
                       type={showKey ? 'text' : 'password'}
-                      placeholder="sk-proj-..."
+                      placeholder={hasKey ? 'Enter new key to replace existing' : 'sk-proj-...'}
                       value={apiKey}
                       onChange={(e) => {
                         setApiKey(e.target.value);
@@ -177,7 +231,7 @@ export default function SettingsPage() {
                   )}
 
                   <div className="flex items-center gap-2">
-                    <Button onClick={handleSave} disabled={isSaving}>
+                    <Button onClick={handleSave} disabled={isSaving || !apiKey.trim()}>
                       {isSaving ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -190,7 +244,7 @@ export default function SettingsPage() {
                     <Button
                       variant="outline"
                       onClick={handleTest}
-                      disabled={!apiKey || isTesting}
+                      disabled={!apiKey.trim() || isTesting}
                     >
                       {isTesting ? (
                         <>
@@ -207,7 +261,7 @@ export default function SettingsPage() {
                 <div className="space-y-3">
                   <div className="h-10 px-3 rounded-md border bg-muted flex items-center text-sm text-muted-foreground">
                     <Key className="w-4 h-4 mr-2" />
-                    {settings.keyStatus === 'SET' ? getMaskedKey(settings.apiKey) : 'No API key configured'}
+                    {hasKey ? getMaskedKey() : 'No API key configured'}
                   </div>
                   <div className="flex items-center gap-2 p-3 rounded-lg bg-muted text-sm">
                     <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -222,7 +276,7 @@ export default function SettingsPage() {
             {/* Info */}
             <div className="pt-4 border-t">
               <p className="text-sm text-muted-foreground">
-                This API key is used by all members in this organization to access AI features. 
+                This API key is used by all members in this organization to access AI features.
                 Keep it secure and do not share it publicly.
               </p>
             </div>

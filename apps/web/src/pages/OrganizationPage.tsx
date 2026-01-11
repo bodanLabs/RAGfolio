@@ -4,16 +4,23 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import { LoadingSkeleton } from '@/components/ui/loading-skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import {
   Dialog,
@@ -47,10 +54,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  UserPlus, 
-  MoreVertical, 
-  Trash2, 
+import {
+  UserPlus,
+  MoreVertical,
+  Trash2,
   RefreshCw,
   Clock,
   Shield,
@@ -61,110 +68,184 @@ import {
   Building2,
   Pencil,
   Check,
-  X
+  X,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { OrganizationMember, Invitation, UserRole } from '@/types';
-import { mockMembers, mockInvitations, mockOrganizations } from '@/data/mockData';
+import {
+  useMembers,
+  useUpdateMemberRole,
+  useRemoveMember,
+  useInvitations,
+  useCreateInvitation,
+  useRevokeInvitation,
+  useResendInvitation,
+  useUpdateOrganization,
+} from '@/hooks/api/useOrganizations';
+import { useApiError } from '@/hooks/useApiError';
+import type { UserRole } from '@/types';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
 const getInitials = (name: string) => {
-  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 };
 
 export default function OrganizationPage() {
-  const { isAdmin, currentOrganization } = useApp();
+  const { isAdmin, currentOrganization, currentOrganizationId } = useApp();
   const { toast } = useToast();
-  const [members, setMembers] = useState<OrganizationMember[]>(mockMembers);
-  const [invitations, setInvitations] = useState<Invitation[]>(mockInvitations);
+  const { handleError } = useApiError();
+
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('USER');
-  const [isInviting, setIsInviting] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
   const [inviteToRevoke, setInviteToRevoke] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
-  const [orgName, setOrgName] = useState(currentOrganization?.name || mockOrganizations[0].name);
-  const [editedName, setEditedName] = useState(orgName);
+  const [editedName, setEditedName] = useState(
+    currentOrganization?.name ?? ''
+  );
 
-  const org = currentOrganization || mockOrganizations[0];
+  const orgId = currentOrganizationId ?? 0;
+
+  // Fetch members
+  const {
+    data: members = [],
+    isLoading: isLoadingMembers,
+    error: membersError,
+    refetch: refetchMembers,
+  } = useMembers(orgId);
+
+  // Fetch invitations
+  const {
+    data: invitations = [],
+    isLoading: isLoadingInvitations,
+    error: invitationsError,
+    refetch: refetchInvitations,
+  } = useInvitations(orgId);
+
+  // Mutations
+  const updateOrgMutation = useUpdateOrganization(orgId);
+  const updateRoleMutation = useUpdateMemberRole(orgId);
+  const removeMemberMutation = useRemoveMember(orgId);
+  const createInvitationMutation = useCreateInvitation(orgId);
+  const revokeInvitationMutation = useRevokeInvitation(orgId);
+  const resendInvitationMutation = useResendInvitation(orgId);
+
+  const pendingInvitations = invitations.filter((i) => i.status === 'PENDING');
 
   const handleInvite = async () => {
     if (!inviteEmail || !inviteEmail.includes('@')) return;
 
-    setIsInviting(true);
-    await new Promise((r) => setTimeout(r, 800));
-
-    const newInvite: Invitation = {
-      id: `inv-${Date.now()}`,
-      email: inviteEmail,
-      role: inviteRole,
-      status: 'PENDING',
-      invitedDate: new Date().toISOString(),
-    };
-
-    setInvitations((prev) => [newInvite, ...prev]);
-    setInviteModalOpen(false);
-    setInviteEmail('');
-    setInviteRole('USER');
-    setIsInviting(false);
-
-    toast({
-      title: 'Invitation sent',
-      description: `An invite has been sent to ${inviteEmail}.`,
-    });
+    try {
+      await createInvitationMutation.mutateAsync({
+        email: inviteEmail,
+        role: inviteRole,
+      });
+      setInviteModalOpen(false);
+      setInviteEmail('');
+      setInviteRole('USER');
+      toast({
+        title: 'Invitation sent',
+        description: `An invite has been sent to ${inviteEmail}.`,
+      });
+    } catch (error) {
+      handleError(error, 'Failed to send invitation');
+    }
   };
 
-  const handleRoleChange = (memberId: string, newRole: UserRole) => {
-    setMembers((prev) =>
-      prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
-    );
-    toast({
-      title: 'Role updated',
-      description: 'Member role has been changed.',
-    });
+  const handleRoleChange = async (memberId: string, newRole: UserRole) => {
+    try {
+      await updateRoleMutation.mutateAsync({
+        memberId: Number(memberId),
+        role: newRole,
+      });
+      toast({
+        title: 'Role updated',
+        description: 'Member role has been changed.',
+      });
+    } catch (error) {
+      handleError(error, 'Failed to update role');
+    }
   };
 
-  const handleRemoveMember = () => {
-    if (memberToRemove) {
-      setMembers((prev) => prev.filter((m) => m.id !== memberToRemove));
-      setMemberToRemove(null);
+  const handleRemoveMember = async () => {
+    if (!memberToRemove) return;
+
+    try {
+      await removeMemberMutation.mutateAsync(Number(memberToRemove));
       toast({
         title: 'Member removed',
         description: 'The member has been removed from the organization.',
       });
+    } catch (error) {
+      handleError(error, 'Failed to remove member');
+    } finally {
+      setMemberToRemove(null);
     }
   };
 
-  const handleRevokeInvite = () => {
-    if (inviteToRevoke) {
-      setInvitations((prev) => prev.filter((i) => i.id !== inviteToRevoke));
-      setInviteToRevoke(null);
+  const handleRevokeInvite = async () => {
+    if (!inviteToRevoke) return;
+
+    try {
+      await revokeInvitationMutation.mutateAsync(Number(inviteToRevoke));
       toast({
         title: 'Invitation revoked',
         description: 'The invitation has been cancelled.',
       });
+    } catch (error) {
+      handleError(error, 'Failed to revoke invitation');
+    } finally {
+      setInviteToRevoke(null);
     }
   };
 
-  const handleResendInvite = (inviteId: string) => {
-    toast({
-      title: 'Invitation resent',
-      description: 'A new invitation email has been sent.',
-    });
+  const handleResendInvite = async (inviteId: string) => {
+    try {
+      await resendInvitationMutation.mutateAsync(Number(inviteId));
+      toast({
+        title: 'Invitation resent',
+        description: 'A new invitation email has been sent.',
+      });
+    } catch (error) {
+      handleError(error, 'Failed to resend invitation');
+    }
   };
 
-  const handleSaveName = () => {
-    if (editedName.trim()) {
-      setOrgName(editedName.trim());
+  const handleSaveName = async () => {
+    if (!editedName.trim()) return;
+
+    try {
+      await updateOrgMutation.mutateAsync({ name: editedName.trim() });
       setIsEditingName(false);
       toast({
         title: 'Organization updated',
         description: 'The organization name has been changed.',
       });
+    } catch (error) {
+      handleError(error, 'Failed to update organization');
     }
   };
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false);
+    setEditedName(currentOrganization?.name ?? '');
+  };
+
+  if (!currentOrganization) {
+    return (
+      <AppShell>
+        <div className="p-4 md:p-6 max-w-5xl mx-auto">
+          <LoadingSkeleton variant="card" count={3} />
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -191,30 +272,42 @@ export default function OrganizationPage() {
                         className="h-8 w-48"
                         autoFocus
                       />
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleSaveName}>
-                        <Check className="w-4 h-4" />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={handleSaveName}
+                        disabled={updateOrgMutation.isPending}
+                      >
+                        {updateOrgMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
                       </Button>
                       <Button
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8"
-                        onClick={() => {
-                          setIsEditingName(false);
-                          setEditedName(orgName);
-                        }}
+                        onClick={handleCancelEdit}
                       >
                         <X className="w-4 h-4" />
                       </Button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-lg">{orgName}</CardTitle>
+                      <CardTitle className="text-lg">
+                        {currentOrganization.name}
+                      </CardTitle>
                       {isAdmin && (
                         <Button
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6"
-                          onClick={() => setIsEditingName(true)}
+                          onClick={() => {
+                            setEditedName(currentOrganization.name);
+                            setIsEditingName(true);
+                          }}
                         >
                           <Pencil className="w-3 h-3" />
                         </Button>
@@ -223,7 +316,11 @@ export default function OrganizationPage() {
                   )}
                   <CardDescription className="flex items-center gap-1.5 mt-0.5">
                     <Calendar className="w-3.5 h-3.5" />
-                    Created {format(new Date(org.createdDate), 'MMMM d, yyyy')}
+                    Created{' '}
+                    {format(
+                      new Date(currentOrganization.createdAt),
+                      'MMMM d, yyyy'
+                    )}
                   </CardDescription>
                 </div>
               </div>
@@ -241,7 +338,7 @@ export default function OrganizationPage() {
               </TabsTrigger>
               <TabsTrigger value="invitations" className="gap-2">
                 <Mail className="w-4 h-4" />
-                Invitations ({invitations.filter((i) => i.status === 'PENDING').length})
+                Invitations ({pendingInvitations.length})
               </TabsTrigger>
             </TabsList>
             {isAdmin && (
@@ -253,97 +350,158 @@ export default function OrganizationPage() {
           </div>
 
           <TabsContent value="members">
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Member</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead className="hidden md:table-cell">Joined</TableHead>
-                    {isAdmin && <TableHead className="w-12"></TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {members.map((member) => (
-                    <TableRow key={member.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                              {getInitials(member.user.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">{member.user.name}</p>
-                            <p className="text-sm text-muted-foreground">{member.user.email}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {isAdmin ? (
-                          <Select
-                            value={member.role}
-                            onValueChange={(v) => handleRoleChange(member.id, v as UserRole)}
-                          >
-                            <SelectTrigger className="w-[110px] h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="ADMIN">
-                                <div className="flex items-center gap-2">
-                                  <Shield className="w-3.5 h-3.5" />
-                                  Admin
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="USER">User</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Badge variant={member.role === 'ADMIN' ? 'default' : 'secondary'}>
-                            {member.role === 'ADMIN' && <Shield className="w-3 h-3 mr-1" />}
-                            {member.role}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5" />
-                          {format(new Date(member.joinedDate), 'MMM d, yyyy')}
-                        </div>
-                      </TableCell>
-                      {isAdmin && (
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => setMemberToRemove(member.id)}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Remove member
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      )}
+            {isLoadingMembers ? (
+              <LoadingSkeleton variant="table" count={3} />
+            ) : membersError ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Failed to load members
+                  </p>
+                  <Button variant="outline" onClick={() => refetchMembers()}>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : members.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Users className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    No members yet
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Member</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Joined
+                      </TableHead>
+                      {isAdmin && <TableHead className="w-12"></TableHead>}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {members.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9">
+                              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                                {getInitials(member.user.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{member.user.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {member.user.email}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {isAdmin ? (
+                            <Select
+                              value={member.role}
+                              onValueChange={(v) =>
+                                handleRoleChange(member.id, v as UserRole)
+                              }
+                              disabled={updateRoleMutation.isPending}
+                            >
+                              <SelectTrigger className="w-[110px] h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ADMIN">
+                                  <div className="flex items-center gap-2">
+                                    <Shield className="w-3.5 h-3.5" />
+                                    Admin
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="USER">User</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge
+                              variant={
+                                member.role === 'ADMIN' ? 'default' : 'secondary'
+                              }
+                            >
+                              {member.role === 'ADMIN' && (
+                                <Shield className="w-3 h-3 mr-1" />
+                              )}
+                              {member.role}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5" />
+                            {format(new Date(member.joinedAt), 'MMM d, yyyy')}
+                          </div>
+                        </TableCell>
+                        {isAdmin && (
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => setMemberToRemove(member.id)}
+                                  className="text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Remove member
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="invitations">
-            {invitations.length === 0 ? (
+            {isLoadingInvitations ? (
+              <LoadingSkeleton variant="table" count={2} />
+            ) : invitationsError ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Failed to load invitations
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => refetchInvitations()}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : invitations.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <Mail className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">No pending invitations</p>
+                  <p className="text-sm text-muted-foreground">
+                    No pending invitations
+                  </p>
                 </CardContent>
               </Card>
             ) : (
@@ -354,16 +512,24 @@ export default function OrganizationPage() {
                       <TableHead>Email</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="hidden md:table-cell">Invited</TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Invited
+                      </TableHead>
                       {isAdmin && <TableHead className="w-12"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {invitations.map((invite) => (
                       <TableRow key={invite.id}>
-                        <TableCell className="font-medium">{invite.email}</TableCell>
+                        <TableCell className="font-medium">
+                          {invite.email}
+                        </TableCell>
                         <TableCell>
-                          <Badge variant={invite.role === 'ADMIN' ? 'default' : 'secondary'}>
+                          <Badge
+                            variant={
+                              invite.role === 'ADMIN' ? 'default' : 'secondary'
+                            }
+                          >
                             {invite.role}
                           </Badge>
                         </TableCell>
@@ -374,29 +540,40 @@ export default function OrganizationPage() {
                               invite.status === 'PENDING'
                                 ? 'border-status-processing text-status-processing'
                                 : invite.status === 'ACCEPTED'
-                                ? 'border-status-ready text-status-ready'
-                                : 'border-status-failed text-status-failed'
+                                  ? 'border-status-ready text-status-ready'
+                                  : 'border-status-failed text-status-failed'
                             }
                           >
                             {invite.status}
                           </Badge>
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-muted-foreground">
-                          {formatDistanceToNow(new Date(invite.invitedDate), { addSuffix: true })}
+                          {formatDistanceToNow(new Date(invite.createdAt), {
+                            addSuffix: true,
+                          })}
                         </TableCell>
                         {isAdmin && (
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                >
                                   <MoreVertical className="w-4 h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleResendInvite(invite.id)}>
-                                  <RefreshCw className="w-4 h-4 mr-2" />
-                                  Resend
-                                </DropdownMenuItem>
+                                {invite.status === 'PENDING' && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleResendInvite(invite.id)}
+                                    disabled={resendInvitationMutation.isPending}
+                                  >
+                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                    Resend
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem
                                   onClick={() => setInviteToRevoke(invite.id)}
                                   className="text-destructive"
@@ -441,7 +618,10 @@ export default function OrganizationPage() {
 
               <div className="space-y-2">
                 <Label>Role</Label>
-                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as UserRole)}>
+                <Select
+                  value={inviteRole}
+                  onValueChange={(v) => setInviteRole(v as UserRole)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -457,11 +637,17 @@ export default function OrganizationPage() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setInviteModalOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setInviteModalOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleInvite} disabled={!inviteEmail || isInviting}>
-                {isInviting ? (
+              <Button
+                onClick={handleInvite}
+                disabled={!inviteEmail || createInvitationMutation.isPending}
+              >
+                {createInvitationMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Sending...
@@ -475,12 +661,16 @@ export default function OrganizationPage() {
         </Dialog>
 
         {/* Remove Member Confirmation */}
-        <AlertDialog open={!!memberToRemove} onOpenChange={() => setMemberToRemove(null)}>
+        <AlertDialog
+          open={!!memberToRemove}
+          onOpenChange={() => setMemberToRemove(null)}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Remove member?</AlertDialogTitle>
               <AlertDialogDescription>
-                This person will lose access to the organization immediately. You can invite them again later.
+                This person will lose access to the organization immediately.
+                You can invite them again later.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -488,20 +678,32 @@ export default function OrganizationPage() {
               <AlertDialogAction
                 onClick={handleRemoveMember}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={removeMemberMutation.isPending}
               >
-                Remove
+                {removeMemberMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Removing...
+                  </>
+                ) : (
+                  'Remove'
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
 
         {/* Revoke Invite Confirmation */}
-        <AlertDialog open={!!inviteToRevoke} onOpenChange={() => setInviteToRevoke(null)}>
+        <AlertDialog
+          open={!!inviteToRevoke}
+          onOpenChange={() => setInviteToRevoke(null)}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Revoke invitation?</AlertDialogTitle>
               <AlertDialogDescription>
-                The invite link will no longer work. You can send a new invitation later.
+                The invite link will no longer work. You can send a new
+                invitation later.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -509,8 +711,16 @@ export default function OrganizationPage() {
               <AlertDialogAction
                 onClick={handleRevokeInvite}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={revokeInvitationMutation.isPending}
               >
-                Revoke
+                {revokeInvitationMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Revoking...
+                  </>
+                ) : (
+                  'Revoke'
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

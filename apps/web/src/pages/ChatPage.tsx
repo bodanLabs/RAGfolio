@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/contexts/AppContext';
 import { AppShell } from '@/components/layout/AppShell';
@@ -23,13 +23,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { 
-  Plus, 
-  Search, 
-  Send, 
-  MoreVertical, 
-  Pencil, 
-  Trash2, 
+import {
+  Plus,
+  Search,
+  Send,
+  MoreVertical,
+  Pencil,
+  Trash2,
   MessageSquare,
   Loader2,
   AlertTriangle,
@@ -37,119 +37,157 @@ import {
   ChevronDown,
   Settings
 } from 'lucide-react';
-import { ChatSession, ChatMessage } from '@/types';
-import { mockChatSessions, mockChatMessages, mockLLMSettings } from '@/data/mockData';
+import {
+  useChatSessions,
+  useChatMessages,
+  useCreateChatSession,
+  useUpdateChatSession,
+  useDeleteChatSession,
+  useSendMessage,
+} from '@/hooks/api/useChat';
+import { useActiveLLMKey } from '@/hooks/api/useLLMKeys';
+import { useApiError } from '@/hooks/useApiError';
 import { formatDistanceToNow } from 'date-fns';
 import { Link } from 'react-router-dom';
 
 export default function ChatPage() {
-  const { isAdmin } = useApp();
-  const [sessions, setSessions] = useState<ChatSession[]>(mockChatSessions);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(mockChatSessions[0]?.id || null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { isAdmin, currentOrganizationId } = useApp();
+  const { handleError } = useApiError();
+
+  const orgId = currentOrganizationId ?? 0;
+
+  // Chat sessions and messages
+  const { data: sessions = [], isLoading: isLoadingSessions } = useChatSessions(orgId);
+  const createSessionMutation = useCreateChatSession(orgId);
+  const updateSessionMutation = useUpdateChatSession(orgId);
+  const deleteSessionMutation = useDeleteChatSession(orgId);
+
+  // LLM key status
+  const { data: activeLLMKey, isLoading: isLoadingKey } = useActiveLLMKey(orgId);
+  const hasApiKey = activeLLMKey !== undefined;
+
+  // Local UI state
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [isSending, setIsSending] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const hasApiKey = mockLLMSettings.keyStatus === 'SET';
+  // Get numeric session ID for API calls
+  const numericSessionId = activeSessionId ? Number(activeSessionId) : 0;
 
+  // Messages for active session
+  const { data: messages = [], isLoading: isLoadingMessages } = useChatMessages(orgId, numericSessionId);
+  const sendMessageMutation = useSendMessage(orgId, numericSessionId);
+
+  // Auto-select first session when sessions load
   useEffect(() => {
-    if (activeSessionId) {
-      setMessages(mockChatMessages[activeSessionId] || []);
+    if (sessions.length > 0 && !activeSessionId) {
+      setActiveSessionId(sessions[0].id);
     }
-  }, [activeSessionId]);
+  }, [sessions, activeSessionId]);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isTyping]);
 
+  // Filter sessions by search query
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleNewChat = () => {
-    const newSession: ChatSession = {
-      id: `cs-${Date.now()}`,
-      title: 'New Chat',
-      createdDate: new Date().toISOString(),
-      lastUpdatedDate: new Date().toISOString(),
-      messageCount: 0,
-    };
-    setSessions([newSession, ...sessions]);
-    setActiveSessionId(newSession.id);
-    setMessages([]);
-    setMobileSessionsOpen(false);
-  };
+  const handleNewChat = useCallback(async () => {
+    try {
+      const newSession = await createSessionMutation.mutateAsync('New Chat');
+      setActiveSessionId(String(newSession.id));
+      setMobileSessionsOpen(false);
+    } catch (error) {
+      handleError(error, 'creating new chat');
+    }
+  }, [createSessionMutation, handleError]);
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || !activeSessionId || isSending) return;
+  const handleSendMessage = useCallback(async () => {
+    if (!inputValue.trim() || !activeSessionId || sendMessageMutation.isPending) return;
 
-    const userMessage: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: inputValue.trim(),
-      timestamp: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    const content = inputValue.trim();
     setInputValue('');
-    setIsSending(true);
     setIsTyping(true);
 
-    // Simulate AI response
-    await new Promise((r) => setTimeout(r, 1500));
-
-    const assistantMessage: ChatMessage = {
-      id: `msg-${Date.now() + 1}`,
-      role: 'assistant',
-      content: "I'll help you with that. Based on the documents in your organization, here's what I found:\n\nThis is a simulated response. In a real implementation, this would be the AI-generated answer based on your organization's documents using RAG (Retrieval-Augmented Generation).",
-      timestamp: new Date().toISOString(),
-    };
-
-    setIsTyping(false);
-    setMessages((prev) => [...prev, assistantMessage]);
-    setIsSending(false);
-  };
+    try {
+      await sendMessageMutation.mutateAsync(content);
+    } catch (error) {
+      handleError(error, 'sending message');
+    } finally {
+      setIsTyping(false);
+    }
+  }, [inputValue, activeSessionId, sendMessageMutation, handleError]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      void handleSendMessage();
     }
   };
 
-  const handleDeleteSession = () => {
-    if (sessionToDelete) {
-      setSessions((prev) => prev.filter((s) => s.id !== sessionToDelete));
+  const handleDeleteSession = useCallback(async () => {
+    if (!sessionToDelete) return;
+
+    try {
+      await deleteSessionMutation.mutateAsync(Number(sessionToDelete));
+
+      // If we deleted the active session, select another
       if (activeSessionId === sessionToDelete) {
         const remaining = sessions.filter((s) => s.id !== sessionToDelete);
-        setActiveSessionId(remaining[0]?.id || null);
+        setActiveSessionId(remaining[0]?.id ?? null);
       }
+    } catch (error) {
+      handleError(error, 'deleting chat');
+    } finally {
       setSessionToDelete(null);
     }
-  };
+  }, [sessionToDelete, activeSessionId, sessions, deleteSessionMutation, handleError]);
 
-  const handleRenameSession = (id: string) => {
-    if (editTitle.trim()) {
-      setSessions((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, title: editTitle.trim() } : s))
-      );
+  const handleRenameSession = useCallback(async (id: string) => {
+    if (!editTitle.trim()) {
+      setEditingSession(null);
+      setEditTitle('');
+      return;
     }
-    setEditingSession(null);
-    setEditTitle('');
-  };
+
+    try {
+      await updateSessionMutation.mutateAsync({
+        sessionId: Number(id),
+        title: editTitle.trim(),
+      });
+    } catch (error) {
+      handleError(error, 'renaming chat');
+    } finally {
+      setEditingSession(null);
+      setEditTitle('');
+    }
+  }, [editTitle, updateSessionMutation, handleError]);
+
+  const isSending = sendMessageMutation.isPending;
 
   const SessionsList = () => (
     <div className="flex flex-col h-full">
       <div className="p-4 space-y-3">
-        <Button onClick={handleNewChat} className="w-full" size="sm">
-          <Plus className="w-4 h-4 mr-2" />
+        <Button
+          onClick={handleNewChat}
+          className="w-full"
+          size="sm"
+          disabled={createSessionMutation.isPending}
+        >
+          {createSessionMutation.isPending ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Plus className="w-4 h-4 mr-2" />
+          )}
           New Chat
         </Button>
         <div className="relative">
@@ -164,9 +202,13 @@ export default function ChatPage() {
       </div>
 
       <ScrollArea className="flex-1 px-2">
-        {filteredSessions.length === 0 ? (
+        {isLoadingSessions ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredSessions.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
-            No chats found
+            {sessions.length === 0 ? 'No chats yet' : 'No chats found'}
           </div>
         ) : (
           <div className="space-y-1 pb-4">
@@ -190,9 +232,9 @@ export default function ChatPage() {
                     <Input
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
-                      onBlur={() => handleRenameSession(session.id)}
+                      onBlur={() => void handleRenameSession(session.id)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleRenameSession(session.id);
+                        if (e.key === 'Enter') void handleRenameSession(session.id);
                         if (e.key === 'Escape') setEditingSession(null);
                       }}
                       className="h-6 text-sm"
@@ -203,7 +245,7 @@ export default function ChatPage() {
                     <>
                       <p className="text-sm font-medium truncate">{session.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(session.lastUpdatedDate), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(session.updatedAt), { addSuffix: true })}
                       </p>
                     </>
                   )}
@@ -249,6 +291,18 @@ export default function ChatPage() {
     </div>
   );
 
+  const isLoading = isLoadingSessions || isLoadingKey;
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="flex items-center justify-center h-[calc(100vh-3.5rem)]">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <div className="flex h-[calc(100vh-3.5rem)]">
@@ -289,7 +343,7 @@ export default function ChatPage() {
                 <Button variant="outline" size="sm" className="w-full justify-between">
                   <span className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4" />
-                    {sessions.find((s) => s.id === activeSessionId)?.title || 'Select a chat'}
+                    {sessions.find((s) => s.id === activeSessionId)?.title ?? 'Select a chat'}
                   </span>
                   <ChevronDown className="w-4 h-4" />
                 </Button>
@@ -305,17 +359,32 @@ export default function ChatPage() {
 
           {/* Messages */}
           <ScrollArea className="flex-1">
-            {!activeSessionId || messages.length === 0 ? (
+            {!activeSessionId ? (
               <EmptyState
                 icon="chat"
                 title="Start your first chat"
                 description="Ask questions and get answers from your organization's documents using AI."
                 action={
-                  <Button onClick={handleNewChat}>
-                    <Plus className="w-4 h-4 mr-2" />
+                  <Button onClick={handleNewChat} disabled={createSessionMutation.isPending}>
+                    {createSessionMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4 mr-2" />
+                    )}
                     New Chat
                   </Button>
                 }
+                className="h-full"
+              />
+            ) : isLoadingMessages ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : messages.length === 0 ? (
+              <EmptyState
+                icon="chat"
+                title="Start the conversation"
+                description="Type a message below to start chatting with your documents."
                 className="h-full"
               />
             ) : (
@@ -381,14 +450,14 @@ export default function ChatPage() {
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  disabled={!hasApiKey || isSending}
+                  disabled={!hasApiKey || isSending || !activeSessionId}
                   className="pr-12 h-12"
                 />
                 <Button
                   size="icon"
                   className="absolute right-1.5 h-9 w-9"
-                  onClick={handleSendMessage}
-                  disabled={!inputValue.trim() || !hasApiKey || isSending}
+                  onClick={() => void handleSendMessage()}
+                  disabled={!inputValue.trim() || !hasApiKey || isSending || !activeSessionId}
                 >
                   {isSending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -416,7 +485,14 @@ export default function ChatPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSession} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={() => void handleDeleteSession()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteSessionMutation.isPending}
+            >
+              {deleteSessionMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
