@@ -8,7 +8,7 @@ from app.api.dependencies import (
     get_db, get_current_user, get_organization, require_admin,
     get_organization_from_query, get_organization_from_form
 )
-from app.db.tables import OrganizationMember
+from app.db.tables import OrganizationMember, Document
 from app.db.tables import UserRecord, Organization
 from app.db.enums import DocumentStatusEnum, DocumentTypeEnum
 from app.models.document import (

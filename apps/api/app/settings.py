@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Database
-    database_url: str = "postgresql://rag_admin:raG_admiN@localhost:5432/ragfolio_db"
+    database_url: str = "postgresql+psycopg://rag_admin:raG_admiN@localhost:5432/ragfolio_db"
 
     # JWT Authentication
     jwt_secret_key: str = "change-me-in-production-secret-key"
