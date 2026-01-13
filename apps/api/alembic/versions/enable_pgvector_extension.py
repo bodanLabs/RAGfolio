@@ -19,12 +19,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Enable pgvector extension
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    connection = op.get_bind()
+    
+    # Check if pgvector extension is already enabled
+    # Only use Vector type if extension is already enabled
+    # Don't try to create extension - let user install pgvector separately
+    check_enabled = connection.execute(sa.text("""
+        SELECT EXISTS(
+            SELECT 1 FROM pg_extension WHERE extname = 'vector'
+        )
+    """))
+    extension_enabled = check_enabled.scalar()
     
     # Add embedding column to document_chunks if it doesn't exist
     # Check if column exists first
-    connection = op.get_bind()
     result = connection.execute(sa.text("""
         SELECT column_name 
         FROM information_schema.columns 
@@ -32,7 +40,14 @@ def upgrade() -> None:
     """))
     
     if result.fetchone() is None:
-        op.add_column('document_chunks', sa.Column('embedding', Vector(1536), nullable=True))
+        if extension_enabled:
+            # Use Vector type if extension is already enabled
+            op.add_column('document_chunks', sa.Column('embedding', Vector(1536), nullable=True))
+        else:
+            # Use BYTEA as fallback if extension is not enabled
+            # Note: Vector operations won't work, but the column will exist
+            # User needs to install pgvector and enable extension manually
+            op.add_column('document_chunks', sa.Column('embedding', sa.LargeBinary(), nullable=True))
 
 
 def downgrade() -> None:
