@@ -17,7 +17,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { useActiveLLMKey, useCreateLLMKey, useUpdateLLMKey, useTestLLMKey } from '@/hooks/api/useLLMKeys';
+import { useActiveLLMKey, useCreateLLMKey, useUpdateLLMKey, useActivateLLMKey, useTestLLMKey } from '@/hooks/api/useLLMKeys';
 import { useApiError } from '@/hooks/useApiError';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,7 @@ export default function SettingsPage() {
   const { data: activeKey, keys, isLoading: isLoadingKeys } = useActiveLLMKey(orgId);
   const createKeyMutation = useCreateLLMKey(orgId);
   const updateKeyMutation = useUpdateLLMKey(orgId);
+  const activateKeyMutation = useActivateLLMKey(orgId);
   const testKeyMutation = useTestLLMKey(orgId);
 
   const [apiKey, setApiKey] = useState('');
@@ -60,13 +61,16 @@ export default function SettingsPage() {
           keyId: Number(activeKey.id),
           data: { api_key: apiKey },
         });
+        // Key remains active after update
       } else {
         // Create new key
-        await createKeyMutation.mutateAsync({
+        const newKey = await createKeyMutation.mutateAsync({
           key_name: 'OpenAI API Key',
           api_key: apiKey,
           provider: 'openai',
         });
+        // Activate the newly created key
+        await activateKeyMutation.mutateAsync(Number(newKey.id));
       }
 
       setApiKey('');
