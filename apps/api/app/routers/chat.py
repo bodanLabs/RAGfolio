@@ -1,11 +1,11 @@
 """Chat routes for sessions and messages."""
 
-from typing import Annotated
+from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
-    get_db, get_current_user, get_organization
+    get_db, get_current_user, get_organization_from_query
 )
 from app.db.tables import MessageSource, DocumentChunk, Document
 from app.db.tables import UserRecord, Organization
@@ -18,22 +18,14 @@ from app.services.chat import ChatService
 router = APIRouter(tags=["chat"], prefix="/api/chat")
 
 
-def get_chat_service(
-    org: Organization = Depends(get_organization),
-    db: Session = Depends(get_db)
-) -> ChatService:
-    """Dependency for ChatService."""
-    return ChatService(db, org.id)
-
-
 @router.get("/sessions", response_model=list[ChatSessionResponse])
 async def list_sessions(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     org_id: Annotated[int, Query(description="Organization ID")] = None,
-    org: Organization = Depends(get_organization),
+    org: Optional[Organization] = Depends(get_organization_from_query),
     current_user: UserRecord = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    db: Session = Depends(get_db),
 ):
     """List chat sessions with pagination.
     
@@ -43,11 +35,21 @@ async def list_sessions(
         org_id: Organization ID from query
         org: Organization from dependency
         current_user: Current authenticated user
-        chat_service: ChatService instance
+        db: Database session
         
     Returns:
         List of chat sessions
+        
+    Raises:
+        HTTPException: 400 if organization ID is required
     """
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization ID is required"
+        )
+    
+    chat_service = ChatService(db, org.id)
     skip = (page - 1) * page_size
     sessions = chat_service.list_sessions(
         user_id=current_user.id,
@@ -61,9 +63,9 @@ async def list_sessions(
 async def create_session(
     request: ChatSessionCreate,
     org_id: Annotated[int, Query(description="Organization ID")] = None,
-    org: Organization = Depends(get_organization),
+    org: Optional[Organization] = Depends(get_organization_from_query),
     current_user: UserRecord = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    db: Session = Depends(get_db),
 ):
     """Create a new chat session.
     
@@ -72,14 +74,21 @@ async def create_session(
         org_id: Organization ID from query
         org: Organization from dependency
         current_user: Current authenticated user
-        chat_service: ChatService instance
+        db: Database session
         
     Returns:
         Created chat session
         
     Raises:
-        HTTPException: 400 if quota exceeded
+        HTTPException: 400 if organization ID is required or quota exceeded
     """
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization ID is required"
+        )
+    
+    chat_service = ChatService(db, org.id)
     try:
         session = chat_service.create_session(
             user_id=current_user.id,
@@ -97,9 +106,9 @@ async def create_session(
 async def get_session(
     session_id: int,
     org_id: Annotated[int, Query(description="Organization ID")] = None,
-    org: Organization = Depends(get_organization),
+    org: Optional[Organization] = Depends(get_organization_from_query),
     current_user: UserRecord = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    db: Session = Depends(get_db),
 ):
     """Get chat session details.
     
@@ -108,14 +117,21 @@ async def get_session(
         org_id: Organization ID from query
         org: Organization from dependency
         current_user: Current authenticated user
-        chat_service: ChatService instance
+        db: Database session
         
     Returns:
         Chat session details
         
     Raises:
-        HTTPException: 404 if session not found
+        HTTPException: 400 if organization ID is required, 404 if session not found
     """
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization ID is required"
+        )
+    
+    chat_service = ChatService(db, org.id)
     session = chat_service.get_session(session_id, current_user.id)
     if session is None:
         raise HTTPException(
@@ -130,9 +146,9 @@ async def update_session(
     session_id: int,
     request: ChatSessionUpdate,
     org_id: Annotated[int, Query(description="Organization ID")] = None,
-    org: Organization = Depends(get_organization),
+    org: Optional[Organization] = Depends(get_organization_from_query),
     current_user: UserRecord = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    db: Session = Depends(get_db),
 ):
     """Update a chat session (title).
     
@@ -142,14 +158,21 @@ async def update_session(
         org_id: Organization ID from query
         org: Organization from dependency
         current_user: Current authenticated user
-        chat_service: ChatService instance
+        db: Database session
         
     Returns:
         Updated chat session
         
     Raises:
-        HTTPException: 404 if session not found
+        HTTPException: 400 if organization ID is required, 404 if session not found
     """
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization ID is required"
+        )
+    
+    chat_service = ChatService(db, org.id)
     session = chat_service.update_session(
         session_id=session_id,
         user_id=current_user.id,
@@ -167,9 +190,9 @@ async def update_session(
 async def delete_session(
     session_id: int,
     org_id: Annotated[int, Query(description="Organization ID")] = None,
-    org: Organization = Depends(get_organization),
+    org: Optional[Organization] = Depends(get_organization_from_query),
     current_user: UserRecord = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    db: Session = Depends(get_db),
 ):
     """Delete a chat session.
     
@@ -178,11 +201,18 @@ async def delete_session(
         org_id: Organization ID from query
         org: Organization from dependency
         current_user: Current authenticated user
-        chat_service: ChatService instance
+        db: Database session
         
     Raises:
-        HTTPException: 404 if session not found
+        HTTPException: 400 if organization ID is required, 404 if session not found
     """
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization ID is required"
+        )
+    
+    chat_service = ChatService(db, org.id)
     deleted = chat_service.delete_session(session_id, current_user.id)
     if not deleted:
         raise HTTPException(
@@ -196,9 +226,8 @@ async def get_messages(
     session_id: int,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     org_id: Annotated[int, Query(description="Organization ID")] = None,
-    org: Organization = Depends(get_organization),
+    org: Optional[Organization] = Depends(get_organization_from_query),
     current_user: UserRecord = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
     db: Session = Depends(get_db),
 ):
     """Get messages in a chat session.
@@ -209,11 +238,21 @@ async def get_messages(
         org_id: Organization ID from query
         org: Organization from dependency
         current_user: Current authenticated user
-        chat_service: ChatService instance
+        db: Database session
         
     Returns:
         List of messages with sources
+        
+    Raises:
+        HTTPException: 400 if organization ID is required
     """
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization ID is required"
+        )
+    
+    chat_service = ChatService(db, org.id)
     messages = chat_service.get_messages(session_id, current_user.id, limit=limit)
     
     # Get sources for assistant messages
@@ -254,9 +293,8 @@ async def send_message(
     session_id: int,
     request: ChatMessageCreate = Body(...),
     org_id: Annotated[int, Query(description="Organization ID")] = None,
-    org: Organization = Depends(get_organization),
+    org: Optional[Organization] = Depends(get_organization_from_query),
     current_user: UserRecord = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
     db: Session = Depends(get_db),
 ):
     """Send a message and get AI response.
@@ -267,15 +305,21 @@ async def send_message(
         org_id: Organization ID from query
         org: Organization from dependency
         current_user: Current authenticated user
-        chat_service: ChatService instance
         db: Database session
         
     Returns:
         Assistant message with sources
         
     Raises:
-        HTTPException: 400 if session not found or RAG processing fails
+        HTTPException: 400 if organization ID is required, session not found, or RAG processing fails
     """
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization ID is required"
+        )
+    
+    chat_service = ChatService(db, org.id)
     try:
         user_msg, assistant_msg = chat_service.send_message(
             session_id=session_id,

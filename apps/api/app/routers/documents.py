@@ -10,7 +10,7 @@ from app.api.dependencies import (
 )
 from app.db.tables import OrganizationMember, Document
 from app.db.tables import UserRecord, Organization
-from app.db.enums import DocumentStatusEnum, DocumentTypeEnum
+from app.db.enums import DocumentStatusEnum, DocumentTypeEnum, UserRoleEnum
 from app.models.document import (
     DocumentResponse, DocumentUploadResponse, DocumentStats, DocumentListResponse
 )
@@ -196,10 +196,10 @@ async def upload_document(
 async def delete_document(
     doc_id: int,
     org_id: Annotated[int, Query(description="Organization ID")],
-    org: Organization = Depends(get_organization),
-    membership: OrganizationMember = Depends(require_admin),
+    org: Optional[Organization] = Depends(get_organization_from_query),
     current_user: UserRecord = Depends(get_current_user),
     document_service: DocumentService = Depends(get_document_service),
+    db: Session = Depends(get_db),
 ):
     """Delete a document (admin only).
     
@@ -207,13 +207,31 @@ async def delete_document(
         doc_id: Document ID
         org_id: Organization ID from query
         org: Organization from dependency
-        membership: Membership (guaranteed to be admin)
         current_user: Current authenticated user
         document_service: DocumentService instance
+        db: Database session
         
     Raises:
-        HTTPException: 404 if document not found
+        HTTPException: 400 if organization ID is required, 403 if not admin, 404 if document not found
     """
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization ID is required"
+        )
+    
+    # Check if user is admin
+    membership = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == org.id,
+        OrganizationMember.user_id == current_user.id
+    ).first()
+    
+    if membership is None or membership.role != UserRoleEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
     deleted = document_service.delete_document(
         document_id=doc_id,
         organization_id=org.id,
@@ -230,10 +248,10 @@ async def delete_document(
 async def reprocess_document(
     doc_id: int,
     org_id: Annotated[int, Query(description="Organization ID")],
-    org: Organization = Depends(get_organization),
-    membership: OrganizationMember = Depends(require_admin),
+    org: Optional[Organization] = Depends(get_organization_from_query),
     current_user: UserRecord = Depends(get_current_user),
     document_service: DocumentService = Depends(get_document_service),
+    db: Session = Depends(get_db),
 ):
     """Reprocess a document (admin only).
     
@@ -241,16 +259,34 @@ async def reprocess_document(
         doc_id: Document ID
         org_id: Organization ID from query
         org: Organization from dependency
-        membership: Membership (guaranteed to be admin)
         current_user: Current authenticated user
         document_service: DocumentService instance
+        db: Database session
         
     Returns:
         Updated document
         
     Raises:
-        HTTPException: 404 if document not found
+        HTTPException: 400 if organization ID is required, 403 if not admin, 404 if document not found
     """
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization ID is required"
+        )
+    
+    # Check if user is admin
+    membership = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == org.id,
+        OrganizationMember.user_id == current_user.id
+    ).first()
+    
+    if membership is None or membership.role != UserRoleEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
     document = document_service.reprocess_document(
         document_id=doc_id,
         organization_id=org.id,
