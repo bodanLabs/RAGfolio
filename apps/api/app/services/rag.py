@@ -62,8 +62,27 @@ class RAGService:
         Raises:
             ValueError: If embedding generation fails
         """
-        # Generate query embedding
-        embedding_service = EmbeddingService()
+        # Check if pgvector extension is enabled (required for vector search)
+        try:
+            check_ext = self.db.execute(text("""
+                SELECT EXISTS(
+                    SELECT 1 FROM pg_extension WHERE extname = 'vector'
+                )
+            """))
+            extension_enabled = check_ext.scalar()
+            if not extension_enabled:
+                # pgvector is not installed/enabled, return empty results
+                return []
+        except Exception:
+            # If check fails, assume extension is not available
+            return []
+        
+        # Generate query embedding using organization's API key
+        api_key_obj = self.llm_key_service.get_active_api_key(self.organization_id)
+        if api_key_obj is None:
+            raise ValueError("No active LLM API key configured for this organization")
+        api_key = self.llm_key_service.decrypt_api_key(api_key_obj)
+        embedding_service = EmbeddingService(api_key=api_key)
         query_embedding = embedding_service.generate_query_embedding(query)
         
         # Import numpy array for embedding

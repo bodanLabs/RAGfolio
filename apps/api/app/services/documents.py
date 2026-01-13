@@ -196,9 +196,10 @@ class DocumentService:
         self.quota_service.update_storage_count(organization_id, -document.file_size)
         
         # Delete chunks (cascade should handle this, but update quota)
-        chunk_count = self.db.query(DocumentChunk).filter(
+        # Use func.count() to avoid loading all columns (including embedding which may not exist)
+        chunk_count = self.db.query(func.count(DocumentChunk.id)).filter(
             DocumentChunk.document_id == document_id
-        ).count()
+        ).scalar() or 0
         self.quota_service.update_chunk_count(organization_id, -chunk_count)
         
         self.db.commit()
