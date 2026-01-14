@@ -1,414 +1,358 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, MessageSquare, Zap, Shield } from "lucide-react";
+import { 
+  ArrowRight, 
+  MessageSquare, 
+  Zap, 
+  Shield, 
+  FileText, 
+  Brain, 
+  Search, 
+  LayoutGrid, 
+  Terminal,
+  CheckCircle2,
+  Sparkles,
+  Cpu
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
-interface Particle {
-  id: number;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  maxLife: number;
-}
+// --- Utility Hooks & Components ---
 
-const Index = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const particlesRef = useRef<Particle[]>([]);
-  const animationFrameRef = useRef<number>();
-  const lastMousePosition = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+const useIntersectionObserver = (options = {}) => {
+  const elementRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const resizeCanvas = () => {
-      canvas.width = container.offsetWidth;
-      canvas.height = container.offsetHeight;
-      // Update mouse position to center on resize
-      lastMousePosition.current = {
-        x: canvas.width / 2,
-        y: canvas.height / 2
-      };
-    };
-
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      // Create particles spreading from mouse position
-      const angleStep = (Math.PI * 2) / 12; // 12 particles in a circle
-      for (let i = 0; i < 12; i++) {
-        const angle = angleStep * i;
-        const speed = 2 + Math.random() * 3;
-        const particle: Particle = {
-          id: Date.now() + i,
-          x,
-          y,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          life: 60,
-          maxLife: 60,
-        };
-        particlesRef.current.push(particle);
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setIsVisible(true);
+        observer.disconnect();
       }
+    }, { threshold: 0.1, ...options });
 
-      lastMousePosition.current = { x, y };
-
-      // Limit particle count
-      if (particlesRef.current.length > 200) {
-        particlesRef.current = particlesRef.current.slice(-200);
-      }
-    };
-
-    const animate = () => {
-      ctx.fillStyle = '#0B1C2D';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Update and draw particles
-      particlesRef.current = particlesRef.current.filter(particle => {
-        particle.x += particle.vx;
-        particle.y += particle.vy;
-        particle.vx *= 0.98; // Friction
-        particle.vy *= 0.98;
-        particle.life--;
-
-        const alpha = particle.life / particle.maxLife;
-        const size = 3 * alpha;
-
-        // Draw particle with gold gradient
-        const gradient = ctx.createRadialGradient(
-          particle.x, particle.y, 0,
-          particle.x, particle.y, size * 2
-        );
-        gradient.addColorStop(0, `rgba(201, 162, 77, ${alpha * 0.8})`);
-        gradient.addColorStop(0.5, `rgba(201, 162, 77, ${alpha * 0.4})`);
-        gradient.addColorStop(1, `rgba(201, 162, 77, 0)`);
-
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(particle.x, particle.y, size * 2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw trail
-        ctx.strokeStyle = `rgba(201, 162, 77, ${alpha * 0.3})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(particle.x - particle.vx * 2, particle.y - particle.vy * 2);
-        ctx.lineTo(particle.x, particle.y);
-        ctx.stroke();
-
-        return particle.life > 0;
-      });
-
-      // Draw mouse follower glow
-      const glowGradient = ctx.createRadialGradient(
-        lastMousePosition.current.x,
-        lastMousePosition.current.y,
-        0,
-        lastMousePosition.current.x,
-        lastMousePosition.current.y,
-        100
-      );
-      glowGradient.addColorStop(0, 'rgba(201, 162, 77, 0.15)');
-      glowGradient.addColorStop(0.5, 'rgba(201, 162, 77, 0.05)');
-      glowGradient.addColorStop(1, 'rgba(201, 162, 77, 0)');
-
-      ctx.fillStyle = glowGradient;
-      ctx.beginPath();
-      ctx.arc(
-        lastMousePosition.current.x,
-        lastMousePosition.current.y,
-        100,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
-
-      animationFrameRef.current = requestAnimationFrame(animate);
-    };
-
-    animate();
-
-    container.addEventListener('mousemove', handleMouseMove);
+    if (elementRef.current) {
+      observer.observe(elementRef.current);
+    }
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
-      container.removeEventListener('mousemove', handleMouseMove);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+      if (elementRef.current) {
+        observer.unobserve(elementRef.current);
       }
     };
   }, []);
 
+  return [elementRef, isVisible] as const;
+};
+
+const FadeIn = ({ children, delay = 0, className }: { children: React.ReactNode, delay?: number, className?: string }) => {
+  const [ref, isVisible] = useIntersectionObserver();
   return (
-    <div 
-      ref={containerRef}
-      className="relative h-screen w-screen overflow-hidden"
-      style={{ backgroundColor: '#0B1C2D' }}
+    <div
+      ref={ref}
+      className={cn(
+        "transition-all duration-1000 ease-out transform",
+        isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10",
+        className
+      )}
+      style={{ transitionDelay: `${delay}ms` }}
     >
-      {/* Animated Canvas Background */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 z-0"
-        style={{ pointerEvents: 'none' }}
-      />
+      {children}
+    </div>
+  );
+};
 
-      {/* Split Background with Gradient */}
-      <div className="absolute inset-0 flex z-0">
-        {/* Left Half - Darker Navy */}
-        <div 
-          className="relative w-1/2 h-full overflow-hidden"
-          style={{ 
-            backgroundColor: '#0B1C2D',
-            backgroundImage: 'linear-gradient(135deg, #0B1C2D 0%, #132B44 100%)'
-          }}
-        >
-          {/* Subtle grid pattern */}
-          <div 
-            className="absolute inset-0 opacity-[0.03]"
-            style={{
-              backgroundImage: `
-                linear-gradient(rgba(230, 237, 245, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(230, 237, 245, 0.1) 1px, transparent 1px)
-              `,
-              backgroundSize: "40px 40px",
-            }}
-          />
-        </div>
+const SpotlightCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {
+  const divRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [opacity, setOpacity] = useState(0);
 
-        {/* Right Half - Lighter Navy */}
-        <div 
-          className="relative w-1/2 h-full overflow-hidden"
-          style={{ 
-            backgroundColor: '#132B44',
-            backgroundImage: 'linear-gradient(135deg, #132B44 0%, #0B1C2D 100%)'
-          }}
-        >
-          {/* Subtle grid pattern */}
-          <div 
-            className="absolute inset-0 opacity-[0.03]"
-            style={{
-              backgroundImage: `
-                linear-gradient(rgba(230, 237, 245, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(230, 237, 245, 0.1) 1px, transparent 1px)
-              `,
-              backgroundSize: "40px 40px",
-            }}
-          />
-        </div>
-      </div>
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!divRef.current) return;
+    const rect = divRef.current.getBoundingClientRect();
+    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
 
-      {/* Divider Line */}
-      <div 
-        className="absolute top-0 bottom-0 left-1/2 w-px z-10"
-        style={{ 
-          background: 'linear-gradient(to bottom, transparent, #1E3A5A, transparent)',
-          transform: 'translateX(-50%)'
+  return (
+    <div
+      ref={divRef}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setOpacity(1)}
+      onMouseLeave={() => setOpacity(0)}
+      className={cn(
+        "relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/50 text-slate-200 shadow-2xl transition-colors hover:border-slate-700",
+        className
+      )}
+    >
+      <div
+        className="pointer-events-none absolute -inset-px opacity-0 transition duration-300"
+        style={{
+          opacity,
+          background: `radial-gradient(600px circle at ${position.x}px ${position.y}px, rgba(201, 162, 77, 0.1), transparent 40%)`,
         }}
       />
+      <div className="relative h-full p-6">{children}</div>
+    </div>
+  );
+};
 
-      {/* Header */}
-      <header className="absolute top-0 left-0 right-0 z-50 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative">
-              <div 
-                className="w-10 h-10 rounded-full shadow-lg transform group-hover:scale-110 transition-transform duration-300"
-                style={{ backgroundColor: '#C9A24D' }}
-              />
-              <div 
-                className="absolute inset-0 w-10 h-10 rounded-full opacity-50 blur-md animate-pulse"
-                style={{ backgroundColor: '#C9A24D' }}
-              />
+const Index = () => {
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-50 selection:bg-[#C9A24D] selection:text-slate-950 overflow-x-hidden">
+      {/* Background Effects */}
+      <div className="fixed inset-0 -z-10 h-full w-full bg-slate-950">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
+        <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-[#C9A24D] opacity-[0.03] blur-[100px]" />
+        <div className="absolute right-0 bottom-0 -z-10 h-[400px] w-[400px] rounded-full bg-blue-900 opacity-[0.05] blur-[120px]" />
+      </div>
+
+      {/* Navbar */}
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-slate-950/50 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 group">
+            <div className="w-8 h-8 rounded-lg bg-[#C9A24D] flex items-center justify-center shadow-[0_0_15px_rgba(201,162,77,0.3)] transition-transform group-hover:scale-105">
+              <Sparkles className="w-4 h-4 text-slate-950" />
             </div>
-            <span className="text-2xl font-bold" style={{ color: '#E6EDF5' }}>RAGfolio</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">RAGfolio</span>
           </Link>
           <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              className="hover:bg-[#132B44]/50 transition-colors"
-              style={{ color: '#E6EDF5' }}
-              asChild
-            >
-              <Link to="/login">Sign In</Link>
-            </Button>
-            <Button 
-              className="shadow-lg hover:opacity-90 transition-opacity"
-              style={{ 
-                backgroundColor: '#C9A24D',
-                color: '#0B1C2D'
-              }}
-              asChild
-            >
+            <Link to="/login" className="text-sm font-medium text-slate-400 hover:text-slate-100 transition-colors">
+              Sign in
+            </Link>
+            <Button asChild size="sm" className="bg-[#C9A24D] text-slate-950 hover:bg-[#b38f3f] hover:shadow-[0_0_20px_rgba(201,162,77,0.3)] transition-all duration-300">
               <Link to="/signup">
-                Get Started <ArrowRight className="w-4 h-4 ml-2" />
+                Get Started
               </Link>
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="absolute inset-0 flex items-center justify-center z-10">
-        <div className="relative max-w-6xl px-6 text-center">
-          {/* Title */}
-          <h1 
-            className="text-5xl md:text-7xl lg:text-8xl font-bold mb-6 leading-tight"
-            style={{ 
-              color: '#E6EDF5',
-              textShadow: '0 4px 20px rgba(0,0,0,0.3)'
-            }}
-          >
-            Your Intelligent
-            <br />
-            <span style={{ color: '#C9A24D' }}>
-              Document Companion
-            </span>
-          </h1>
+      <main className="pt-32 pb-16">
+        {/* Hero Section */}
+        <section className="relative px-6 mb-32">
+          <div className="max-w-5xl mx-auto text-center">
+            <FadeIn>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#C9A24D]/20 bg-[#C9A24D]/5 text-[#C9A24D] text-xs font-medium mb-8">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#C9A24D] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#C9A24D]"></span>
+                </span>
+                RAGfolio 2.0 is now available
+              </div>
+            </FadeIn>
+            
+            <FadeIn delay={100}>
+              <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-8 bg-clip-text text-transparent bg-gradient-to-b from-slate-50 to-slate-400">
+                Chat with your <br />
+                <span className="text-[#C9A24D]">Knowledge Base</span>
+              </h1>
+            </FadeIn>
 
-          {/* Description */}
-          <p 
-            className="max-w-2xl mx-auto text-xl md:text-2xl mb-12"
-            style={{ color: '#9FB2C8' }}
-          >
-            RAGfolio is a cutting-edge RAG application that allows you to chat with your documents, 
-            extract key insights, and streamline your workflow.
-          </p>
+            <FadeIn delay={200}>
+              <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+                Transform your static documents into an intelligent, conversational AI. 
+                Upload PDFs, DOCX, and TXT files to instantly extract insights and get answers.
+              </p>
+            </FadeIn>
 
-          {/* Buttons */}
-          <div className="flex flex-col sm:flex-row justify-center gap-4 mb-16">
-            <Button 
-              size="lg" 
-              className="text-lg px-8 py-6 shadow-xl hover:scale-105 transition-transform"
-              style={{ 
-                backgroundColor: '#C9A24D',
-                color: '#0B1C2D'
-              }}
-              asChild
-            >
-              <Link to="/signup">
-                Get Started for Free
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Link>
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="text-lg px-8 py-6 backdrop-blur-sm hover:scale-105 transition-transform"
-              style={{ 
-                borderColor: '#1E3A5A',
-                color: '#E6EDF5',
-                backgroundColor: 'rgba(19, 43, 68, 0.3)'
-              }}
-              asChild
-            >
-              <Link to="/login">
-                View Demo
-              </Link>
-            </Button>
+            <FadeIn delay={300}>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Button asChild size="lg" className="h-12 px-8 text-base bg-[#C9A24D] text-slate-950 hover:bg-[#b38f3f] hover:shadow-[0_0_30px_rgba(201,162,77,0.4)] transition-all duration-300">
+                  <Link to="/signup">
+                    Start Building Free <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
+                  <Link to="/login">
+                    Live Demo
+                  </Link>
+                </Button>
+              </div>
+            </FadeIn>
           </div>
+        </section>
 
-          {/* Feature Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {[
-              {
-                icon: MessageSquare,
-                title: "Conversational AI",
-                description: "Engage in natural conversations with your documents",
-              },
-              {
-                icon: Zap,
-                title: "Intelligent Extraction",
-                description: "Automatically extract key insights and summaries",
-              },
-              {
-                icon: Shield,
-                title: "Secure & Private",
-                description: "Your data remains private and confidential",
-              },
-            ].map((feature, index) => {
-              const Icon = feature.icon;
-              
-              return (
-                <div
-                  key={index}
-                  className="relative group"
-                >
-                  <div
-                    className="relative p-8 rounded-2xl border transition-all duration-300 hover:scale-105 hover:-translate-y-2"
-                    style={{
-                      backgroundColor: '#132B44',
-                      borderColor: '#1E3A5A',
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-                    }}
-                  >
-                    {/* Gold accent on hover */}
-                    <div 
-                      className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                      style={{
-                        background: 'linear-gradient(135deg, rgba(201, 162, 77, 0.1), rgba(201, 162, 77, 0.05))',
-                        borderColor: '#C9A24D',
-                      }}
-                    />
-                    
-                    <div 
-                      className="relative p-4 mb-4 w-16 h-16 mx-auto rounded-2xl shadow-lg transform group-hover:rotate-6 transition-transform duration-300"
-                      style={{
-                        backgroundColor: '#C9A24D',
-                      }}
-                    >
-                      <Icon className="w-8 h-8" style={{ color: '#0B1C2D' }} />
+        {/* Visual Demo Section */}
+        <section className="px-6 mb-32">
+          <FadeIn delay={400}>
+            <div className="max-w-5xl mx-auto rounded-xl border border-slate-800 bg-slate-950/50 shadow-2xl overflow-hidden backdrop-blur-sm">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800 bg-slate-900/50">
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50" />
+                  <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50" />
+                </div>
+                <div className="flex-1 text-center text-xs text-slate-500 font-mono">ragfolio-preview.tsx</div>
+              </div>
+              <div className="p-6 md:p-12 grid md:grid-cols-2 gap-12 items-center">
+                <div className="space-y-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-slate-400" />
                     </div>
-                    <h3 
-                      className="text-xl font-bold mb-3"
-                      style={{ color: '#E6EDF5' }}
-                    >
-                      {feature.title}
-                    </h3>
-                    <p 
-                      className="text-sm"
-                      style={{ color: '#9FB2C8' }}
-                    >
-                      {feature.description}
-                    </p>
+                    <div className="space-y-2">
+                      <div className="h-2 w-24 bg-slate-800 rounded" />
+                      <div className="h-2 w-full bg-slate-800/50 rounded" />
+                      <div className="h-2 w-3/4 bg-slate-800/50 rounded" />
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-2 w-20 bg-slate-800 rounded" />
+                      <div className="h-2 w-full bg-slate-800/50 rounded" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center py-4">
+                    <ArrowRight className="w-6 h-6 text-slate-700 rotate-90 md:rotate-0" />
                   </div>
                 </div>
-              );
-            })}
+                <div className="relative">
+                  <div className="absolute -inset-4 bg-[#C9A24D]/10 blur-2xl rounded-full" />
+                  <div className="relative bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+                    <div className="flex justify-end">
+                      <div className="bg-[#C9A24D] text-slate-950 px-4 py-2 rounded-2xl rounded-br-sm text-sm font-medium">
+                        Summarize the Q3 financial report.
+                      </div>
+                    </div>
+                    <div className="flex justify-start">
+                      <div className="bg-slate-800 text-slate-200 px-4 py-2 rounded-2xl rounded-bl-sm text-sm">
+                        <p className="mb-2">Based on the Q3 report, here are the key highlights:</p>
+                        <ul className="list-disc list-inside space-y-1 text-slate-400 text-xs">
+                          <li>Revenue increased by 15% YoY</li>
+                          <li>Operating costs reduced by 8%</li>
+                          <li>New market expansion in APAC region</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </FadeIn>
+        </section>
+
+        {/* Features Grid */}
+        <section className="px-6 py-24 relative">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 text-slate-100">Everything you need to build</h2>
+              <p className="text-slate-400 max-w-2xl mx-auto">
+                Powerful features designed for developers and businesses who need reliable, secure, and fast document intelligence.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <SpotlightCard>
+                <div className="w-12 h-12 rounded-lg bg-slate-900/50 border border-slate-800 flex items-center justify-center mb-4">
+                  <Brain className="w-6 h-6 text-[#C9A24D]" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2 text-slate-100">Advanced RAG Engine</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Our retrieval engine uses hybrid search to ensure the most relevant context is always found for your queries.
+                </p>
+              </SpotlightCard>
+
+              <SpotlightCard>
+                <div className="w-12 h-12 rounded-lg bg-slate-900/50 border border-slate-800 flex items-center justify-center mb-4">
+                  <Terminal className="w-6 h-6 text-[#C9A24D]" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2 text-slate-100">Developer API</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Integrate RAGfolio directly into your applications with our robust and well-documented REST API.
+                </p>
+              </SpotlightCard>
+
+              <SpotlightCard>
+                <div className="w-12 h-12 rounded-lg bg-slate-900/50 border border-slate-800 flex items-center justify-center mb-4">
+                  <Shield className="w-6 h-6 text-[#C9A24D]" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2 text-slate-100">Enterprise Security</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Your data is encrypted at rest and in transit. Role-based access control ensures data privacy.
+                </p>
+              </SpotlightCard>
+
+              <SpotlightCard>
+                <div className="w-12 h-12 rounded-lg bg-slate-900/50 border border-slate-800 flex items-center justify-center mb-4">
+                  <LayoutGrid className="w-6 h-6 text-[#C9A24D]" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2 text-slate-100">Organization Management</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Create organizations, invite team members, and manage permissions with a centralized dashboard.
+                </p>
+              </SpotlightCard>
+
+              <SpotlightCard>
+                <div className="w-12 h-12 rounded-lg bg-slate-900/50 border border-slate-800 flex items-center justify-center mb-4">
+                  <Cpu className="w-6 h-6 text-[#C9A24D]" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2 text-slate-100">Model Agnostic</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Bring your own LLM keys. Support for OpenAI, Anthropic, and other major providers.
+                </p>
+              </SpotlightCard>
+
+              <SpotlightCard>
+                <div className="w-12 h-12 rounded-lg bg-slate-900/50 border border-slate-800 flex items-center justify-center mb-4">
+                  <Search className="w-6 h-6 text-[#C9A24D]" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2 text-slate-100">Deep Insights</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Go beyond simple chat. Extract structured data, summaries, and sentiment from your document corpus.
+                </p>
+              </SpotlightCard>
+            </div>
           </div>
-        </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="px-6 py-24">
+          <div className="max-w-4xl mx-auto relative">
+            <div className="absolute inset-0 bg-[#C9A24D]/20 blur-[100px] -z-10" />
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 backdrop-blur-xl p-8 md:p-16 text-center overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#C9A24D] to-transparent opacity-50" />
+              
+              <h2 className="text-3xl md:text-4xl font-bold mb-6 text-slate-100">Ready to transform your workflow?</h2>
+              <p className="text-slate-400 mb-8 max-w-xl mx-auto">
+                Join thousands of users who are already using RAGfolio to make their documents interactive and useful.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Button asChild size="lg" className="w-full sm:w-auto bg-[#C9A24D] text-slate-950 hover:bg-[#b38f3f]">
+                  <Link to="/signup">
+                    Get Started Now
+                  </Link>
+                </Button>
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <CheckCircle2 className="w-4 h-4 text-[#C9A24D]" />
+                  <span>No credit card required</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* Footer */}
-      <footer className="absolute bottom-0 left-0 right-0 z-20 py-4 px-6">
-        <div className="flex flex-col md:flex-row items-center justify-between max-w-7xl mx-auto text-sm">
-          <p style={{ color: '#9FB2C8' }}>&copy; 2026 RAGfolio. All rights reserved.</p>
-          <div className="flex gap-4 mt-2 md:mt-0">
-            <Link 
-              to="#" 
-              className="transition-colors hover:opacity-80"
-              style={{ color: '#9FB2C8' }}
-            >
-              Terms of Service
-            </Link>
-            <Link 
-              to="#" 
-              className="transition-colors hover:opacity-80"
-              style={{ color: '#9FB2C8' }}
-            >
-              Privacy Policy
-            </Link>
+      <footer className="border-t border-slate-900 bg-slate-950 py-12 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded bg-[#C9A24D] flex items-center justify-center">
+              <Sparkles className="w-3 h-3 text-slate-950" />
+            </div>
+            <span className="text-lg font-bold text-slate-200">RAGfolio</span>
+          </div>
+          <div className="text-sm text-slate-500">
+            © 2026 RAGfolio Inc. All rights reserved.
+          </div>
+          <div className="flex gap-6 text-sm text-slate-400">
+            <a href="#" className="hover:text-[#C9A24D] transition-colors">Privacy</a>
+            <a href="#" className="hover:text-[#C9A24D] transition-colors">Terms</a>
+            <a href="#" className="hover:text-[#C9A24D] transition-colors">Twitter</a>
+            <a href="#" className="hover:text-[#C9A24D] transition-colors">GitHub</a>
           </div>
         </div>
       </footer>
