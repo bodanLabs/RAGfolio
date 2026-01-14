@@ -193,7 +193,7 @@ class ChatService:
         
         return messages
 
-    def send_message(
+    async def send_message(
         self, session_id: int, user_id: int, content: str
     ) -> tuple[ChatMessage, ChatMessage]:
         """Send a message and generate AI response using RAG.
@@ -229,8 +229,8 @@ class ChatService:
             for msg in previous_messages[-10:]  # Last 10 messages for context
         ]
         
-        # Generate RAG response
-        response_text, sources = self.rag_service.generate_rag_response(
+        # Generate RAG response (async)
+        response_text, sources = await self.rag_service.generate_rag_response(
             user_query=content,
             conversation_history=conversation_history
         )

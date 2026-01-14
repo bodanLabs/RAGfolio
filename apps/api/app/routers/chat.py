@@ -321,7 +321,7 @@ async def send_message(
     
     chat_service = ChatService(db, org.id)
     try:
-        user_msg, assistant_msg = chat_service.send_message(
+        user_msg, assistant_msg = await chat_service.send_message(
             session_id=session_id,
             user_id=current_user.id,
             content=request.content

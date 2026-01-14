@@ -132,7 +132,7 @@ class RAGService:
         
         return chunks_with_scores
 
-    def generate_rag_response(
+    async def generate_rag_response(
         self,
         user_query: str,
         conversation_history: Optional[List[dict]] = None,
@@ -207,9 +207,9 @@ Based on the above context, answer the user's question:"""
         messages.append({"role": "user", "content": context_message})
         messages.append({"role": "user", "content": user_query})
         
-        # Generate response
+        # Generate response (this will run in thread pool executor)
         llm_service = self._get_llm_service()
-        response = llm_service.generate_response(
+        response = await llm_service.generate_response(
             messages=messages,
             model=model,
             temperature=0.7
