@@ -87,6 +87,10 @@ class ChunkingService:
             start = end - char_overlap
             if start >= end:  # Prevent infinite loop
                 start = end
+            if start < 0:  # Prevent negative start (when text is shorter than overlap)
+                start = end
+            if start >= text_length:  # We've processed all text
+                break
         
         return chunks
 
