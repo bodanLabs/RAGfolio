@@ -4,14 +4,17 @@
   "private": true,
   "description": "RAG Application Monorepo - Frontend and Backend",
   "scripts": {
-    "dev": "concurrently \"pnpm:dev:web\" \"pnpm:dev:api\" --names \"web,api\" --prefix-colors \"cyan,magenta\"",
+    "dev": "concurrently \"pnpm:dev:web\" \"pnpm:dev:api\" \"pnpm:dev:celery\" --names \"web,api,celery\" --prefix-colors \"cyan,magenta,yellow\"",
     "dev:web": "turbo run dev",
     "dev:api": "cd apps/api && .venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --port 8000",
+    "dev:celery": "cd apps/api && .venv\\Scripts\\python.exe -m celery -A app.celery_app worker --loglevel=info --pool=solo",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "start:all": "powershell -ExecutionPolicy Bypass -File ./start-all.ps1",
+    "stop:all": "powershell -ExecutionPolicy Bypass -File ./stop-all.ps1"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
