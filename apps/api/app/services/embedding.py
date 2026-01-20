@@ -34,7 +34,7 @@ class EmbeddingService:
         try:
             from openai import OpenAI
             
-            client = OpenAI(api_key=self.api_key)
+            client = OpenAI(api_key=self.api_key, timeout=60.0)  # 60 second timeout
             response = client.embeddings.create(
                 model="text-embedding-ada-002",
                 input=text
@@ -62,20 +62,27 @@ class EmbeddingService:
         """
         try:
             from openai import OpenAI
+            import logging
             
-            client = OpenAI(api_key=self.api_key)
+            logger = logging.getLogger(__name__)
+            logger.info(f"Initializing OpenAI client for batch embedding generation ({len(texts)} texts)")
+            
+            client = OpenAI(api_key=self.api_key, timeout=60.0)  # 60 second timeout
             all_embeddings = []
             
             # Process in batches
             for i in range(0, len(texts), batch_size):
                 batch = texts[i:i + batch_size]
+                logger.info(f"Processing batch {i // batch_size + 1}: {len(batch)} texts")
                 response = client.embeddings.create(
                     model="text-embedding-ada-002",
                     input=batch
                 )
                 batch_embeddings = [item.embedding for item in response.data]
                 all_embeddings.extend(batch_embeddings)
+                logger.info(f"Batch {i // batch_size + 1} completed: {len(batch_embeddings)} embeddings")
             
+            logger.info(f"Generated {len(all_embeddings)} total embeddings")
             return all_embeddings
         except ImportError:
             raise ImportError("openai package is required. Install with: pip install openai")
