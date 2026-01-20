@@ -258,7 +258,15 @@ async def get_messages(
     # Get sources for assistant messages
     result = []
     for msg in messages:
-        msg_dict = ChatMessageResponse.model_validate(msg).model_dump()
+        # Manually construct the message dict to avoid issues with sources relationship
+        msg_dict = {
+            "id": msg.id,
+            "session_id": msg.session_id,
+            "role": msg.role.value,
+            "content": msg.content,
+            "created_at": msg.created_at,
+            "sources": []
+        }
         
         if msg.role.value == "assistant":
             # Get sources for this message
@@ -349,8 +357,15 @@ async def send_message(
                         "text_preview": chunk.text_content[:200] + "..." if len(chunk.text_content) > 200 else chunk.text_content
                     })
         
-        msg_dict = ChatMessageResponse.model_validate(assistant_msg).model_dump()
-        msg_dict["sources"] = sources
+        # Manually construct the message dict to avoid issues with sources relationship
+        msg_dict = {
+            "id": assistant_msg.id,
+            "session_id": assistant_msg.session_id,
+            "role": assistant_msg.role.value,
+            "content": assistant_msg.content,
+            "created_at": assistant_msg.created_at,
+            "sources": sources
+        }
         
         return ChatMessageWithSources(**msg_dict)
     except ValueError as e:
