@@ -123,12 +123,32 @@ class RAGService:
         for row in result:
             chunk_id = row.id
             similarity = float(row.similarity)
+            # Log similarity scores for debugging (can be removed later)
             if similarity >= min_score:
                 chunk = self.db.query(DocumentChunk).filter(
                     DocumentChunk.id == chunk_id
                 ).first()
                 if chunk:
                     chunks_with_scores.append((chunk, similarity))
+        
+        # If no chunks found, check if it's because of low similarity scores
+        if not chunks_with_scores and result.rowcount > 0:
+            # Re-query to see what similarity scores we got
+            debug_result = self.db.execute(
+                query_sql,
+                {
+                    "query_embedding": embedding_str,
+                    "org_id": self.organization_id,
+                    "status": DocumentStatusEnum.READY.value,
+                    "limit": limit
+                }
+            )
+            similarities = [float(row.similarity) for row in debug_result]
+            if similarities:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Found {len(similarities)} chunks but all below min_score {min_score}. "
+                           f"Max similarity: {max(similarities):.3f}, Min: {min(similarities):.3f}")
         
         return chunks_with_scores
 
