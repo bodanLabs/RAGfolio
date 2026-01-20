@@ -32,12 +32,20 @@ def process_document_task(self, document_id: int, organization_id: int, api_key:
     Returns:
         Dictionary with processing results
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Starting document processing: document_id={document_id}, org_id={organization_id}")
+    
     db = get_db_session()
     try:
         # Get document
         document = db.query(Document).filter(Document.id == document_id).first()
         if document is None:
+            logger.error(f"Document {document_id} not found")
             return {"error": "Document not found", "document_id": document_id}
+        
+        logger.info(f"Processing document: {document.file_name}")
         
         # Update status to processing
         document.status = DocumentStatusEnum.PROCESSING
@@ -52,30 +60,46 @@ def process_document_task(self, document_id: int, organization_id: int, api_key:
         try:
             # Get full file path
             full_file_path = file_storage.storage_path / document.file_path
+            logger.info(f"File path: {full_file_path}")
+            logger.info(f"File exists: {full_file_path.exists()}")
             
             # Extract text
+            logger.info("Extracting text from document...")
             text_content = text_extraction.extract_text(
                 str(full_file_path),
                 document.file_type.value
             )
+            logger.info(f"Extracted {len(text_content)} characters of text")
             
             # Chunk text
-            chunks = chunking_service.chunk_text(text_content)
+            logger.info("Chunking text...")
+            try:
+                chunks = chunking_service.chunk_text(text_content)
+                logger.info(f"Chunking completed, created {len(chunks)} chunks")
+            except Exception as e:
+                logger.error(f"Error during chunking: {e}", exc_info=True)
+                raise
+            
+            if chunks:
+                logger.info(f"First chunk preview: {chunks[0].text[:50]}...")
             
             if not chunks:
                 raise ValueError("No text chunks extracted from document")
             
             # Generate embeddings in batches
+            logger.info("Generating embeddings...")
             chunk_texts = [chunk.text for chunk in chunks]
             embeddings = embedding_service.generate_embeddings_batch(
                 chunk_texts,
                 batch_size=settings.embedding_batch_size
             )
+            logger.info(f"Generated {len(embeddings)} embeddings")
             
             # Store chunks and embeddings
             # Convert embeddings to pgvector format
             import numpy as np
             
+            logger.info("Storing chunks and embeddings in database...")
             chunk_objects = []
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 # pgvector accepts list of floats
@@ -90,6 +114,7 @@ def process_document_task(self, document_id: int, organization_id: int, api_key:
                 )
                 chunk_objects.append(chunk_obj)
                 db.add(chunk_obj)
+            logger.info(f"Added {len(chunk_objects)} chunks to database session")
             
             # Update document
             document.status = DocumentStatusEnum.READY
@@ -104,6 +129,8 @@ def process_document_task(self, document_id: int, organization_id: int, api_key:
             quota_service = QuotaService(db)
             quota_service.update_chunk_count(organization_id, len(chunk_objects))
             
+            logger.info(f"Document {document_id} processed successfully: {len(chunk_objects)} chunks created")
+            
             return {
                 "success": True,
                 "document_id": document_id,
@@ -112,6 +139,7 @@ def process_document_task(self, document_id: int, organization_id: int, api_key:
             
         except Exception as e:
             # Mark document as failed
+            logger.error(f"Document {document_id} processing failed: {str(e)}", exc_info=True)
             document.status = DocumentStatusEnum.FAILED
             document.error_message = str(e)
             db.commit()
