@@ -81,3 +81,25 @@ class AuthService:
             UserRecord if found, None otherwise
         """
         return self.db.query(UserRecord).filter(UserRecord.email == email).first()
+
+    def update_user(self, user: UserRecord, name: str | None = None, password: str | None = None) -> UserRecord:
+        """Update user profile.
+
+        Args:
+            user: User record to update
+            name: New name (optional)
+            password: New password (optional)
+
+        Returns:
+            Updated UserRecord
+        """
+        if name is not None:
+            user.name = name
+        
+        if password is not None:
+            user.password_hash = hash_password(password)
+        
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user

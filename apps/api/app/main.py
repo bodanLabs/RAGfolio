@@ -35,7 +35,7 @@ async def health():
 
 from app.db.base import Base
 from app.db.session import engine
-from app.routers import auth, organizations, chat, documents, llm
+from app.routers import auth, organizations, chat, documents, llm, users
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -46,3 +46,4 @@ app.include_router(organizations.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
 app.include_router(llm.router)
+app.include_router(users.router)
