@@ -33,6 +33,7 @@ type AppContextType = AppState & {
   refreshOrganizations: () => Promise<void>;
   isAdmin: boolean;
   isLoading: boolean;
+  setUser: (user: User | null) => void;
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -262,6 +263,7 @@ export function AppProvider({ children }: AppProviderProps) {
       refreshOrganizations,
       isAdmin,
       isLoading,
+      setUser,
     }),
     [
       user,

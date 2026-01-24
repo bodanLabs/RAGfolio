@@ -17,6 +17,7 @@ const ChatPage = lazy(() => import('./pages/ChatPage'));
 const DocumentsPage = lazy(() => import('./pages/DocumentsPage'));
 const OrganizationPage = lazy(() => import('./pages/OrganizationPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Configure QueryClient with optimized defaults
@@ -145,6 +146,18 @@ function AppRoutes() {
                 <Navigate to="/org/setup" replace />
               ) : (
                 <SettingsPage />
+              )}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              {!currentOrganization && organizations.length === 0 ? (
+                <Navigate to="/org/setup" replace />
+              ) : (
+                <ProfilePage />
               )}
             </ProtectedRoute>
           }

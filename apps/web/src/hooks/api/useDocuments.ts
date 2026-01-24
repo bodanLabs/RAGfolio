@@ -33,6 +33,19 @@ export function useDocuments(orgId: number, filters: DocumentFilters = {}) {
       };
     },
     enabled: orgId > 0,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      // If we don't have data, don't poll
+      if (!data) return false;
+
+      // Check if any visible documents are in a transient state
+      const hasPendingDocs = data.documents.some(
+        (doc) => doc.status === 'PROCESSING' || doc.status === 'UPLOADED'
+      );
+
+      // Poll every 2 seconds if we have pending documents
+      return hasPendingDocs ? 2000 : false;
+    },
   });
 }
 

@@ -136,6 +136,10 @@ export function useSendMessage(orgId: number, sessionId: number) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.chat.session(orgId, sessionId),
       });
+      // Invalidate sessions list in case title was updated
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.chat.sessions(orgId),
+      });
     },
   });
 }

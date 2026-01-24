@@ -174,7 +174,7 @@ export default function ChatPage() {
 
   const isSending = sendMessageMutation.isPending;
 
-  const SessionsList = () => (
+  const renderSessionsList = () => (
     <div className="flex flex-col h-full">
       <div className="p-4 space-y-3">
         <Button
@@ -308,7 +308,7 @@ export default function ChatPage() {
       <div className="flex h-[calc(100vh-3.5rem)]">
         {/* Desktop Sessions Panel */}
         <div className="hidden md:flex w-72 border-r bg-card flex-col">
-          <SessionsList />
+          {renderSessionsList()}
         </div>
 
         {/* Chat Area */}
@@ -352,7 +352,7 @@ export default function ChatPage() {
                 <SheetHeader className="sr-only">
                   <SheetTitle>Chat Sessions</SheetTitle>
                 </SheetHeader>
-                <SessionsList />
+                {renderSessionsList()}
               </SheetContent>
             </Sheet>
           </div>
