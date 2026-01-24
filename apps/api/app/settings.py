@@ -58,6 +58,17 @@ class Settings(BaseSettings):
     db_max_overflow: int = 10
     db_pool_recycle: int = 3600  # 1 hour
 
+    # Email
+    mail_username: str = ""
+    mail_password: str = ""
+    mail_from: str = "noreply@ragfolio.com"
+    mail_port: int = 587
+    mail_server: str = ""
+    mail_starttls: bool = True
+    mail_ssl_tls: bool = False
+    mail_use_credentials: bool = True
+    mail_validate_certs: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -100,6 +100,12 @@ def process_document_task(self, document_id: int, organization_id: int, api_key:
             import numpy as np
             
             logger.info("Storing chunks and embeddings in database...")
+
+            # Clear existing chunks to ensure idempotency
+            num_deleted = db.query(DocumentChunk).filter(DocumentChunk.document_id == document.id).delete()
+            if num_deleted > 0:
+                logger.info(f"Deleted {num_deleted} existing chunks for document {document_id}")
+            
             chunk_objects = []
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 # pgvector accepts list of floats
