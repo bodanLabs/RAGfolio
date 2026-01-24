@@ -213,6 +213,9 @@ class ChatService:
         if session is None:
             raise ValueError("Chat session not found")
         
+        # Check if we should rename the session (only on first message if title is default)
+        should_rename = session.message_count == 0 and session.title == "New Chat"
+        
         # Create user message
         user_message = ChatMessage(
             session_id=session_id,
@@ -256,6 +259,16 @@ class ChatService:
         # Update session
         session.message_count += 2
         session.updated_at = datetime.utcnow()
+        
+        # Auto-rename session if needed
+        if should_rename:
+            try:
+                summary = await self.rag_service.generate_summary(content)
+                if summary:
+                    session.title = summary
+            except Exception:
+                # Silently fail on summary generation error to avoid blocking the message
+                pass
         
         self.db.commit()
         self.db.refresh(user_message)

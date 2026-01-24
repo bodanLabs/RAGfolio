@@ -236,3 +236,34 @@ Based on the above context, answer the user's question:"""
         )
         
         return response, sources
+
+    async def generate_summary(
+        self,
+        text_to_summarize: str,
+        model: str = "gpt-3.5-turbo"
+    ) -> str:
+        """Generate a short summary of the text.
+        
+        Args:
+            text_to_summarize: Text to summarize
+            model: LLM model to use
+            
+        Returns:
+            Summary text
+        """
+        system_prompt = "Summarize the following message in 3-5 words to be used as a chat title. Do not wrap in quotes."
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": text_to_summarize}
+        ]
+        
+        llm_service = self._get_llm_service()
+        summary = await llm_service.generate_response(
+            messages=messages,
+            model=model,
+            temperature=0.5,
+            max_tokens=20
+        )
+        
+        return summary.strip()
