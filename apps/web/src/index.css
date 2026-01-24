@@ -136,17 +136,14 @@
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter Variable', system-ui, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    overflow: hidden;
   }
   
   html {
-    overflow: hidden;
     height: 100%;
   }
   
   #root {
-    height: 100vh;
-    overflow: hidden;
+    height: 100%;
   }
   
   h1, h2, h3, h4, h5, h6 {
