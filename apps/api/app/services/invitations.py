@@ -14,6 +14,10 @@ from app.services.members import MemberService
 from app.settings import settings
 
 
+
+from fastapi import BackgroundTasks
+from app.services.email import EmailService
+
 class InvitationService:
     """Service for managing organization invitations."""
 
@@ -26,6 +30,7 @@ class InvitationService:
         self.db = db
         self.audit_service = AuditService(db)
         self.member_service = MemberService(db)
+        self.email_service = EmailService()
 
     def _generate_token(self) -> str:
         """Generate a secure invitation token.
@@ -36,7 +41,12 @@ class InvitationService:
         return secrets.token_urlsafe(32)
 
     def create_invitation(
-        self, organization_id: int, email: str, role: UserRoleEnum, invited_by_id: int
+        self, 
+        organization_id: int, 
+        email: str, 
+        role: UserRoleEnum, 
+        invited_by_id: int,
+        background_tasks: BackgroundTasks
     ) -> Invitation:
         """Create a new invitation.
         
@@ -45,6 +55,7 @@ class InvitationService:
             email: Email address to invite
             role: Role to assign
             invited_by_id: User ID who is sending the invitation
+            background_tasks: Background tasks for sending email
             
         Returns:
             Created Invitation
@@ -102,10 +113,79 @@ class InvitationService:
                 details=f"Invited {email} as {role.value}"
             )
             
+            # Send email
+            org = self.db.query(Organization).filter(Organization.id == organization_id).first()
+            # We assume the frontend URL is localhost:5173 for now if not in settings
+            # But checking settings.py, we didn't add webapp_url yet. 
+            # I will use a hardcoded default or derive from cors_origins if possible, 
+            # but for now I'll use http://localhost:5173 as safe default for this user.
+            base_url = "http://localhost:5173"
+            invite_link = f"{base_url}/accept-invite?token={token}"
+            
+            self.email_service.send_invitation_email(
+                email_to=email,
+                invite_link=invite_link,
+                organization_name=org.name if org else "the organization",
+                role=role.value,
+                background_tasks=background_tasks
+            )
+            
             return invitation
         except IntegrityError:
             self.db.rollback()
             raise ValueError("Failed to create invitation")
+
+    # ... get_invitation_by_token, get_invitations, accept_invitation ... 
+    # (Since I'm replacing chunks, I need to be careful not to delete these methods if I can't see them all)
+    # The file view showed lines 1-308. I will replace the whole file content for safety or use targeted replaced if I can match perfectly.
+    # The tool `replace_file_content` is for single contiguous block.
+    # I can replace from `class InvitationService:` down to `def accept_invitation` start, or use `multi_replace`.
+    # I think I'll use `multi_replace` to be surgical.
+    
+
+    def resend_invitation(
+        self, 
+        invitation_id: int, 
+        organization_id: int, 
+        resent_by_id: int,
+        background_tasks: BackgroundTasks
+    ) -> Invitation:
+        """Resend an invitation by creating a new one.
+        
+        Args:
+            invitation_id: Original invitation ID
+            organization_id: Organization ID
+            resent_by_id: User ID who is resending
+            background_tasks: Background tasks for email
+            
+        Returns:
+            New Invitation
+            
+        Raises:
+            ValueError: If original invitation is not found
+        """
+        original = self.db.query(Invitation).filter(
+            Invitation.id == invitation_id,
+            Invitation.organization_id == organization_id
+        ).first()
+        
+        if original is None:
+            raise ValueError("Invitation not found")
+        
+        # Mark old invitation as expired
+        original.status = InvitationStatusEnum.EXPIRED
+        
+        # Create new invitation
+        new_invitation = self.create_invitation(
+            organization_id=organization_id,
+            email=original.email,
+            role=original.role,
+            invited_by_id=resent_by_id,
+            background_tasks=background_tasks
+        )
+        
+        return new_invitation
+
 
     def get_invitation_by_token(self, token: str) -> Optional[Invitation]:
         """Get an invitation by token.
@@ -269,39 +349,4 @@ class InvitationService:
         
         return True
 
-    def resend_invitation(
-        self, invitation_id: int, organization_id: int, resent_by_id: int
-    ) -> Invitation:
-        """Resend an invitation by creating a new one.
-        
-        Args:
-            invitation_id: Original invitation ID
-            organization_id: Organization ID
-            resent_by_id: User ID who is resending
-            
-        Returns:
-            New Invitation
-            
-        Raises:
-            ValueError: If original invitation is not found
-        """
-        original = self.db.query(Invitation).filter(
-            Invitation.id == invitation_id,
-            Invitation.organization_id == organization_id
-        ).first()
-        
-        if original is None:
-            raise ValueError("Invitation not found")
-        
-        # Mark old invitation as expired
-        original.status = InvitationStatusEnum.EXPIRED
-        
-        # Create new invitation
-        new_invitation = self.create_invitation(
-            organization_id=organization_id,
-            email=original.email,
-            role=original.role,
-            invited_by_id=resent_by_id
-        )
-        
-        return new_invitation
+

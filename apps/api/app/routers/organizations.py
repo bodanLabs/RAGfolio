@@ -1,7 +1,7 @@
 """Organization routes for CRUD operations, members, and invitations."""
 
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
@@ -335,6 +335,7 @@ async def remove_member(
 @router.post("/{org_id}/invitations", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
 async def create_invitation(
     request: InvitationCreate,
+    background_tasks: BackgroundTasks,
     org: Organization = Depends(get_organization),
     membership: OrganizationMember = Depends(require_admin),
     current_user: UserRecord = Depends(get_current_user),
@@ -344,6 +345,7 @@ async def create_invitation(
     
     Args:
         request: Invitation creation request
+        background_tasks: Background tasks for sending email
         org: Organization from dependency
         membership: Membership (guaranteed to be admin)
         current_user: Current authenticated user
@@ -368,7 +370,8 @@ async def create_invitation(
             organization_id=org.id,
             email=request.email,
             role=role,
-            invited_by_id=current_user.id
+            invited_by_id=current_user.id,
+            background_tasks=background_tasks
         )
         return InvitationResponse.model_validate(invitation)
     except ValueError as e:
@@ -463,6 +466,7 @@ async def revoke_invitation(
 @router.post("/{org_id}/invitations/{invitation_id}/resend", response_model=InvitationResponse)
 async def resend_invitation(
     invitation_id: int,
+    background_tasks: BackgroundTasks,
     org: Organization = Depends(get_organization),
     membership: OrganizationMember = Depends(require_admin),
     current_user: UserRecord = Depends(get_current_user),
@@ -472,6 +476,7 @@ async def resend_invitation(
     
     Args:
         invitation_id: Invitation ID
+        background_tasks: Background tasks for sending email
         org: Organization from dependency
         membership: Membership (guaranteed to be admin)
         current_user: Current authenticated user
@@ -487,7 +492,8 @@ async def resend_invitation(
         new_invitation = invitation_service.resend_invitation(
             invitation_id=invitation_id,
             organization_id=org.id,
-            resent_by_id=current_user.id
+            resent_by_id=current_user.id,
+            background_tasks=background_tasks
         )
         return InvitationResponse.model_validate(new_invitation)
     except ValueError as e:
