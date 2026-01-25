@@ -1,6 +1,9 @@
 # RAGfolio
 
 A modern RAG (Retrieval-Augmented Generation) application built with a monorepo architecture. RAGfolio enables organizations to upload documents, process them into vector embeddings, and interact with them through an AI-powered chat interface using RAG technology.
+<p align="center">
+<img width="800" height="800" alt="image" src="https://github.com/user-attachments/assets/e2ef3708-ff6e-4025-a6e5-833a2fce6a03" style="display:block; margin: 0 auto;" />
+</p>
 
 ## Project Description
 
@@ -80,6 +83,9 @@ RAGfolio/
 - Organization-based access control
 - Member management and invitations
 - Role-based permissions
+<p align="center">
+<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/44ea2438-7a2a-4aff-a225-0c4c06b3b56c" />
+</p>
 
 ### Document Management
 - Upload documents (PDF, DOCX, TXT)
@@ -88,6 +94,9 @@ RAGfolio/
 - Vector embedding generation
 - Document search and retrieval
 - Document statistics and analytics
+<p align="center">
+<img width="1063" height="694" alt="image" src="https://github.com/user-attachments/assets/346525d1-00b8-4f80-944e-be9fd6295014" />
+</p>
 
 ### RAG Chat System
 - Create and manage chat sessions
@@ -95,6 +104,9 @@ RAGfolio/
 - Source citation and references
 - Message history
 - Vector similarity search for relevant chunks
+<p align="center">
+<img width="1173" height="692" alt="image" src="https://github.com/user-attachments/assets/d434aad0-3589-4e1d-bf8a-3868c5ca6dc2" />
+</p>
 
 ### Organization Management
 - Create and manage organizations
@@ -102,17 +114,26 @@ RAGfolio/
 - Manage member roles and permissions
 - Organization statistics and quotas
 - Usage tracking
+<p align="center">
+<img width="1176" height="695" alt="image" src="https://github.com/user-attachments/assets/11548952-96bd-45ab-a46b-02e5092c9ccc" />
+</p>
 
 ### LLM Configuration
 - Secure storage of LLM API keys (encrypted)
 - Multiple LLM provider support
 - API key testing and validation
 - Active key management
+<p align="center">
+<img width="1173" height="694" alt="image" src="https://github.com/user-attachments/assets/fbe140c3-1cc5-4214-a152-2826bf49fd4b" />
+</p>
 
 ### Background Processing
 - Asynchronous document processing with Celery
 - Background embedding generation
 - Task queue management with Redis
+<p align="center">
+<img width="1227" height="568" alt="image" src="https://github.com/user-attachments/assets/848528c1-a4a8-4801-9be7-97d272bbd20e" />
+</p>
 
 ## Prerequisites
 
